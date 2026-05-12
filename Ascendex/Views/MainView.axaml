@@ -2,10 +2,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Ascendex.Controls"
              xmlns:vm="clr-namespace:Ascendex.ViewModels"
              mc:Ignorable="d"
-             d:DesignWidth="800"
-             d:DesignHeight="450"
+             d:DesignWidth="430"
+             d:DesignHeight="860"
              x:Class="Ascendex.Views.MainView"
              x:DataType="vm:MainViewModel">
   <Design.DataContext>
@@ -13,35 +14,79 @@
   </Design.DataContext>
 
   <Border Background="#23262D">
-    <ScrollViewer VerticalScrollBarVisibility="Disabled">
-      <ItemsControl ItemsSource="{Binding PokemonBars}">
+    <Grid Margin="16,18" RowDefinitions="Auto,400,Auto,Auto" RowSpacing="14">
+      <controls:OutlinedTextBlock Text="{Binding CurrentAreaName}" Foreground="White" FontSize="28" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1.5"/>
+
+      <ItemsControl Grid.Row="1" ItemsSource="{Binding PokemonBars}" HorizontalAlignment="Stretch" VerticalAlignment="Top">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
-            <StackPanel Margin="16,24" Spacing="12" />
+            <StackPanel Spacing="8" />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:PokemonTrainingBarViewModel">
-            <Button Command="{Binding AdvanceCommand}" Padding="0" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch">
-              <Grid Height="82" ColumnDefinitions="92,*">
-                <Border Background="{Binding AccentBrush}">
-                  <TextBlock Text="{Binding Level}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="32" FontWeight="SemiBold" Foreground="{Binding AccentForegroundBrush}" />
-                </Border>
-
-                <Grid Grid.Column="1" ClipToBounds="True">
-                  <Border Background="#4B505A" />
-                  <Border Background="{Binding AccentBrush}" RenderTransformOrigin="0,0.5">
-                    <Border.RenderTransform>
-                      <ScaleTransform ScaleX="{Binding ProgressFraction}" />
-                    </Border.RenderTransform>
+            <Button Command="{Binding ToggleTrainingCommand}" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+              <Border BorderBrush="{Binding TrainingBorderBrush}" BorderThickness="{Binding TrainingBorderThickness}">
+                <Grid Height="68" ColumnDefinitions="76,2,*">
+                  <Border Background="{Binding AccentBrush}">
+                    <controls:OutlinedTextBlock Text="{Binding Level}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28" FontWeight="SemiBold" Foreground="White" OutlineBrush="Black" OutlineThickness="1.5"/>
                   </Border>
-                  <TextBlock Text="{Binding Name}" Margin="16,0" VerticalAlignment="Center" Foreground="White" FontSize="24" FontWeight="Medium" />
+
+                  <Border Grid.Column="1" Background="White"/>
+
+                  <Grid Grid.Column="2" ClipToBounds="True">
+                    <Border Background="#4B505A"/>
+                    <Border Background="{Binding AccentBrush}" RenderTransformOrigin="0,0.5">
+                      <Border.RenderTransform>
+                        <ScaleTransform ScaleX="{Binding ProgressFraction}" />
+                      </Border.RenderTransform>
+                    </Border>
+                    <controls:OutlinedTextBlock Margin="14,0" Text="{Binding Name}" VerticalAlignment="Center" Foreground="White" FontSize="22" FontWeight="Medium" OutlineBrush="Black" OutlineThickness="1.5"/>
+                    <controls:OutlinedTextBlock Margin="0,0,10,6" Text="{Binding TimeRemainingText}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Foreground="White" FontSize="11" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1"/>
+                  </Grid>
                 </Grid>
-              </Grid>
+              </Border>
             </Button>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-    </ScrollViewer>
+
+      <Border Grid.Row="2" Background="#2E333B" BorderBrush="#5F6470" BorderThickness="1" Padding="10">
+        <ItemsControl ItemsSource="{Binding AreaSelectors}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel ItemWidth="64" ItemHeight="48" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:AreaSelectionViewModel">
+              <Button Command="{Binding SelectCommand}" Padding="0" Background="Transparent" BorderThickness="0">
+                <Border Width="56" Height="44" Margin="0,0,8,8" Background="{Binding BackgroundBrush}" BorderBrush="{Binding BorderBrush}" BorderThickness="1">
+                  <controls:OutlinedTextBlock Text="{Binding ShortLabel}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="18" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1"/>
+                </Border>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+
+      <Border Grid.Row="3" Background="#2E333B" BorderBrush="#5F6470" BorderThickness="1" Padding="12">
+        <ItemsControl ItemsSource="{Binding TypeCounters}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel ItemWidth="88" ItemHeight="40" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:TypeCounterViewModel">
+              <Grid ColumnDefinitions="36,Auto" ColumnSpacing="4">
+                <Image Width="36" Height="36" Source="{Binding Icon}" Stretch="Uniform"/>
+                <controls:OutlinedTextBlock Grid.Column="1" Text="{Binding Count}" VerticalAlignment="Center" Foreground="White" FontSize="16" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1"/>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+    </Grid>
   </Border>
 </UserControl>
