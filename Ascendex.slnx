@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Packages.props" />
+  </Folder>
+  <Project Path="Ascendex.Android/Ascendex.Android.csproj" />
+  <Project Path="Ascendex.Browser/Ascendex.Browser.csproj" />
+  <Project Path="Ascendex.Desktop/Ascendex.Desktop.csproj" />
+  <Project Path="Ascendex.iOS/Ascendex.iOS.csproj" />
+  <Project Path="Ascendex/Ascendex.csproj" />
+</Solution>
