@@ -12,10 +12,11 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     private static readonly IBrush IdleBorderBrush = Brush.Parse("#5F6470");
     private static readonly IBrush ActiveBorderBrush = Brushes.White;
     private static readonly TimeSpan TrainingTickInterval = TimeSpan.FromMilliseconds(16);
-    private const double LevelGrowthFactor = 1.3;
+    private const double LevelGrowthFactor = 1.2;
     private const double ProgressPerTick = 1;
 
     private readonly Action<string> _recordTypeLevelUp;
+    private readonly Action<PokemonTrainingBarViewModel> _recordLevelChanged;
     private readonly Action<PokemonTrainingBarViewModel> _toggleTrainingRequested;
     private readonly DispatcherTimer _trainingTimer;
 
@@ -25,10 +26,12 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         string accentColor,
         string accentForegroundColor,
         Action<PokemonTrainingBarViewModel> toggleTrainingRequested,
+        Action<PokemonTrainingBarViewModel> recordLevelChanged,
         Action<string> recordTypeLevelUp,
-        double progressRequired = 120)
+        double progressRequired = 60)
     {
         _recordTypeLevelUp = recordTypeLevelUp;
+        _recordLevelChanged = recordLevelChanged;
         _toggleTrainingRequested = toggleTrainingRequested;
         Name = name;
         TypeKey = typeKey;
@@ -85,6 +88,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         OnPropertyChanged(nameof(ProgressRequired));
         OnPropertyChanged(nameof(ProgressFraction));
         OnPropertyChanged(nameof(TimeRemainingText));
+        _recordLevelChanged(this);
     }
 
     partial void OnIsTrainingChanged(bool value)

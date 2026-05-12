@@ -38,6 +38,9 @@ public partial class AreaSelectionViewModel : ViewModelBase
     public IBrush BorderBrush => IsSelected ? SelectedBorderBrush : UnselectedBorderBrush;
 
     [ObservableProperty]
+    private bool _isVisible = true;
+
+    [ObservableProperty]
     private bool _isSelected;
 
     partial void OnIsSelectedChanged(bool value)
