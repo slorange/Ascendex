@@ -1,9 +1,16 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using System.Collections.ObjectModel;
 
 namespace Ascendex.ViewModels;
 
-public partial class MainViewModel : ViewModelBase
+public class MainViewModel : ViewModelBase
 {
-    [ObservableProperty]
-    private string _greeting = "Welcome to Avalonia!";
+    public ObservableCollection<PokemonTrainingBarViewModel> PokemonBars { get; } =
+        new(
+        [
+            new("Bulbasaur", "#5AC85C", "#F5FFF5"),
+            new("Charmander", "#E35B4F", "#FFF5F3"),
+            new("Squirtle", "#4DA6E8", "#F4FBFF"),
+            new("Pikachu", "#F2D34C", "#2B2400"),
+            new("Eevee", "#F1F1F1", "#1B1B1B")
+        ]);
 }

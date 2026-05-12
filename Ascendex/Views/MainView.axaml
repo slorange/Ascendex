@@ -3,14 +3,45 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Ascendex.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             mc:Ignorable="d"
+             d:DesignWidth="800"
+             d:DesignHeight="450"
              x:Class="Ascendex.Views.MainView"
              x:DataType="vm:MainViewModel">
   <Design.DataContext>
-    <!-- This only sets the DataContext for the previewer in an IDE,
-         to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
     <vm:MainViewModel />
   </Design.DataContext>
 
-  <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+  <Border Background="#23262D">
+    <ScrollViewer VerticalScrollBarVisibility="Disabled">
+      <ItemsControl ItemsSource="{Binding PokemonBars}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Margin="16,24" Spacing="12" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:PokemonTrainingBarViewModel">
+            <Button Command="{Binding AdvanceCommand}" Padding="0" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch">
+              <Grid Height="82" ColumnDefinitions="92,*">
+                <Border Background="{Binding AccentBrush}">
+                  <TextBlock Text="{Binding Level}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="32" FontWeight="SemiBold" Foreground="{Binding AccentForegroundBrush}" />
+                </Border>
+
+                <Grid Grid.Column="1" ClipToBounds="True">
+                  <Border Background="#4B505A" />
+                  <Border Background="{Binding AccentBrush}" RenderTransformOrigin="0,0.5">
+                    <Border.RenderTransform>
+                      <ScaleTransform ScaleX="{Binding ProgressFraction}" />
+                    </Border.RenderTransform>
+                  </Border>
+                  <TextBlock Text="{Binding Name}" Margin="16,0" VerticalAlignment="Center" Foreground="White" FontSize="24" FontWeight="Medium" />
+                </Grid>
+              </Grid>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </Border>
 </UserControl>
