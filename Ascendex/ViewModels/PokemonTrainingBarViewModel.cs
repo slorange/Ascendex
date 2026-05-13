@@ -28,7 +28,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         Action<PokemonTrainingBarViewModel> toggleTrainingRequested,
         Action<PokemonTrainingBarViewModel> recordLevelChanged,
         Action<string> recordTypeLevelUp,
-        double progressRequired = 60)
+        double progressRequired)
     {
         _recordTypeLevelUp = recordTypeLevelUp;
         _recordLevelChanged = recordLevelChanged;

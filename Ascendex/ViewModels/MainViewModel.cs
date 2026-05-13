@@ -112,6 +112,7 @@ public class MainViewModel : ViewModelBase
     private readonly List<PokemonTrainingBarViewModel> _allPokemonBars;
     private readonly Dictionary<string, TypeCounterViewModel> _typeCountersByKey;
     private string _currentAreaName = string.Empty;
+    private int _selectedAreaIndex;
 
     public MainViewModel()
     {
@@ -325,6 +326,13 @@ public class MainViewModel : ViewModelBase
         private set => SetProperty(ref _currentAreaName, value);
     }
 
+    /// <summary>Index of the selected area in <see cref="AreaSelectors"/>; used to keep the route strip centered on the current location.</summary>
+    public int SelectedAreaIndex
+    {
+        get => _selectedAreaIndex;
+        private set => SetProperty(ref _selectedAreaIndex, value);
+    }
+
     private void AddArea(
         string shortLabel,
         string displayName,
@@ -378,6 +386,7 @@ public class MainViewModel : ViewModelBase
             area.IsSelected = area == selectedArea;
         }
 
+        SelectedAreaIndex = AreaSelectors.IndexOf(selectedArea);
         CurrentAreaName = selectedArea.DisplayName;
         PokemonBars.Clear();
 
