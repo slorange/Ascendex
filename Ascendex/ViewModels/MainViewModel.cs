@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Ascendex.ViewModels;
 
@@ -110,12 +111,17 @@ public class MainViewModel : ViewModelBase
         };
 
     private readonly List<PokemonTrainingBarViewModel> _allPokemonBars;
+    private readonly List<PokemonTrainingBarViewModel> _allBattleBars;
     private readonly Dictionary<string, TypeCounterViewModel> _typeCountersByKey;
     private string _currentAreaName = string.Empty;
     private int _selectedAreaIndex;
+    private int _selectedMainTab;
 
     public MainViewModel()
     {
+        SelectRoutesTabCommand = new RelayCommand(() => SelectedMainTab = 0);
+        SelectBattlesTabCommand = new RelayCommand(() => SelectedMainTab = 1);
+
         TypeCounters =
             new ObservableCollection<TypeCounterViewModel>
             {
@@ -146,8 +152,10 @@ public class MainViewModel : ViewModelBase
         }
 
         PokemonBars = new ObservableCollection<PokemonTrainingBarViewModel>();
+        BattleBars = new ObservableCollection<PokemonTrainingBarViewModel>();
         AreaSelectors = new ObservableCollection<AreaSelectionViewModel>();
         _allPokemonBars = new List<PokemonTrainingBarViewModel>();
+        _allBattleBars = new List<PokemonTrainingBarViewModel>();
 
         AddArea(
             "PT",
@@ -312,9 +320,39 @@ public class MainViewModel : ViewModelBase
 
         UpdateAreaVisibility();
         SelectArea(AreaSelectors[0]);
+        InitializeBattles();
     }
 
+    public IRelayCommand SelectRoutesTabCommand { get; }
+
+    public IRelayCommand SelectBattlesTabCommand { get; }
+
+    public int SelectedMainTab
+    {
+        get => _selectedMainTab;
+        set
+        {
+            if (SetProperty(ref _selectedMainTab, value))
+            {
+                OnPropertyChanged(nameof(IsRoutesTabSelected));
+                OnPropertyChanged(nameof(IsBattlesTabSelected));
+                OnPropertyChanged(nameof(RoutesTabOpacity));
+                OnPropertyChanged(nameof(BattlesTabOpacity));
+            }
+        }
+    }
+
+    public bool IsRoutesTabSelected => _selectedMainTab == 0;
+
+    public bool IsBattlesTabSelected => _selectedMainTab == 1;
+
+    public double RoutesTabOpacity => _selectedMainTab == 0 ? 1.0 : 0.45;
+
+    public double BattlesTabOpacity => _selectedMainTab == 1 ? 1.0 : 0.45;
+
     public ObservableCollection<PokemonTrainingBarViewModel> PokemonBars { get; }
+
+    public ObservableCollection<PokemonTrainingBarViewModel> BattleBars { get; }
 
     public ObservableCollection<AreaSelectionViewModel> AreaSelectors { get; }
 
@@ -405,6 +443,58 @@ public class MainViewModel : ViewModelBase
         }
 
         foreach (var bar in _allPokemonBars)
+        {
+            if (bar != selectedBar && bar.IsTraining)
+            {
+                bar.SetTraining(false);
+            }
+        }
+
+        selectedBar.SetTraining(true);
+    }
+
+    private void InitializeBattles()
+    {
+        AddBattle("Brock", "rock");
+        AddBattle("Misty", "water");
+        AddBattle("Lt. Surge", "electric");
+        AddBattle("Erika", "grass");
+        AddBattle("Koga", "poison");
+        AddBattle("Sabrina", "psychic");
+        AddBattle("Blaine", "fire");
+        AddBattle("Giovanni", "ground");
+        AddBattle("Lorelei", "ice");
+        AddBattle("Bruno", "fighting");
+        AddBattle("Agatha", "ghost");
+        AddBattle("Lance", "dragon");
+        AddBattle("Blue", "normal");
+    }
+
+    private void AddBattle(string name, string typeKey, double progressRequired = 30)
+    {
+        var palette = ResolveBarPalette(name, typeKey);
+        var bar = new PokemonTrainingBarViewModel(
+            name,
+            typeKey,
+            palette.AccentColor,
+            palette.ForegroundColor,
+            ToggleBattleTraining,
+            _ => { },
+            _ => { },
+            progressRequired);
+        _allBattleBars.Add(bar);
+        BattleBars.Add(bar);
+    }
+
+    private void ToggleBattleTraining(PokemonTrainingBarViewModel selectedBar)
+    {
+        if (selectedBar.IsTraining)
+        {
+            selectedBar.SetTraining(false);
+            return;
+        }
+
+        foreach (var bar in _allBattleBars)
         {
             if (bar != selectedBar && bar.IsTraining)
             {

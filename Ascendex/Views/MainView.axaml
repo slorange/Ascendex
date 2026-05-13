@@ -2,8 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:controls="clr-namespace:Ascendex.Controls"
              xmlns:vm="clr-namespace:Ascendex.ViewModels"
+             xmlns:views="clr-namespace:Ascendex.Views"
              mc:Ignorable="d"
              d:DesignWidth="430"
              d:DesignHeight="860"
@@ -14,111 +14,44 @@
   </Design.DataContext>
 
   <UserControl.Styles>
-    <Style Selector="Button.staticClick">
+    <Style Selector="Button.mainTab">
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="BorderBrush" Value="Transparent"/>
       <Setter Property="BorderThickness" Value="0"/>
-      <Setter Property="Padding" Value="0"/>
-      <Setter Property="RenderTransform" Value="none"/>
-      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderBrush" Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="0"/>
-      </Style>
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
       <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderBrush" Value="Transparent"/>
-      </Style>
-      <Style Selector="^:pressed">
-        <Setter Property="RenderTransform" Value="none"/>
+        <Setter Property="Background" Value="#2A2E36"/>
       </Style>
       <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Background" Value="#333842"/>
       </Style>
     </Style>
   </UserControl.Styles>
 
   <Border Background="#23262D">
-    <Grid Margin="16,18" RowDefinitions="Auto,400,Auto,Auto" RowSpacing="14">
-      <controls:OutlinedTextBlock Text="{Binding CurrentAreaName}" Foreground="White" FontSize="28" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1.5"/>
+    <Grid RowDefinitions="*,Auto">
+      <Panel Grid.Row="0">
+        <views:RoutesView IsVisible="{Binding IsRoutesTabSelected}" />
+        <views:BattlesView IsVisible="{Binding IsBattlesTabSelected}" />
+      </Panel>
 
-      <ItemsControl Grid.Row="1" ItemsSource="{Binding PokemonBars}" HorizontalAlignment="Stretch" VerticalAlignment="Top">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate>
-            <StackPanel />
-          </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:PokemonTrainingBarViewModel">
-            <Button Classes="staticClick" Command="{Binding ToggleTrainingCommand}" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-              <Grid Height="68">
-                <Grid ColumnDefinitions="*,2,4.5*">
-                  <Border Background="{Binding AccentBrush}">
-                    <controls:OutlinedTextBlock Text="{Binding Level}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28" FontWeight="SemiBold" Foreground="White" OutlineBrush="Black" OutlineThickness="1.5"/>
-                  </Border>
-
-                  <Border Grid.Column="1" Background="White"/>
-
-                  <Grid Grid.Column="2" ClipToBounds="True">
-                    <Border Background="#4B505A"/>
-                    <Border Background="{Binding AccentBrush}" RenderTransformOrigin="0,0.5">
-                      <Border.RenderTransform>
-                        <ScaleTransform ScaleX="{Binding ProgressFraction}" />
-                      </Border.RenderTransform>
-                    </Border>
-                    <controls:OutlinedTextBlock Margin="14,0" Text="{Binding Name}" VerticalAlignment="Center" Foreground="White" FontSize="22" FontWeight="Medium" OutlineBrush="Black" OutlineThickness="1.5"/>
-                    <controls:OutlinedTextBlock Margin="0,0,10,6" Text="{Binding TimeRemainingText}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Foreground="White" FontSize="11" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1"/>
-                  </Grid>
-                </Grid>
-
-                <Border Background="Transparent" BorderBrush="{Binding TrainingBorderBrush}" BorderThickness="{Binding TrainingBorderThickness}" IsHitTestVisible="False"/>
-              </Grid>
-            </Button>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-
-      <Border Grid.Row="2" Padding="0,10" ClipToBounds="True">
-        <ScrollViewer x:Name="AreaScrollViewer" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" AllowAutoHide="False">
-          <Border x:Name="AreaStripInsets" Background="Transparent">
-            <ItemsControl x:Name="AreaItemsControl" ItemsSource="{Binding AreaSelectors}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <StackPanel Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:AreaSelectionViewModel">
-                  <Button Classes="staticClick" Command="{Binding SelectCommand}" Padding="0" Background="Transparent" BorderThickness="0" IsVisible="{Binding IsVisible}">
-                    <Border Width="56" Height="44" Background="{Binding BackgroundBrush}" BorderBrush="{Binding BorderBrush}" BorderThickness="1">
-                      <controls:OutlinedTextBlock Text="{Binding ShortLabel}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="18" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1"/>
-                    </Border>
-                  </Button>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </Border>
-        </ScrollViewer>
-      </Border>
-
-      <Border Grid.Row="3" Background="#2E333B" BorderBrush="#5F6470" BorderThickness="1" Padding="12">
-        <ItemsControl ItemsSource="{Binding TypeCounters}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <WrapPanel ItemWidth="88" ItemHeight="40" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:TypeCounterViewModel">
-              <Grid ColumnDefinitions="36,Auto" ColumnSpacing="4">
-                <Image Width="36" Height="36" Source="{Binding Icon}" Stretch="Uniform"/>
-                <controls:OutlinedTextBlock Grid.Column="1" Text="{Binding Count}" VerticalAlignment="Center" Foreground="White" FontSize="16" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1"/>
-              </Grid>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+      <Border Grid.Row="1" Background="#1A1D22" BorderBrush="#3F4450" BorderThickness="0,1,0,0" Padding="8,10">
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+          <Button Grid.Column="0" Classes="mainTab" Command="{Binding SelectRoutesTabCommand}">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Routes" Foreground="White" FontSize="16" FontWeight="SemiBold" Opacity="{Binding RoutesTabOpacity}" HorizontalAlignment="Center"/>
+              <Border Height="2" CornerRadius="1" Background="#C8CDD8" IsVisible="{Binding IsRoutesTabSelected}" HorizontalAlignment="Stretch" Margin="12,0"/>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="1" Classes="mainTab" Command="{Binding SelectBattlesTabCommand}">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Battles" Foreground="White" FontSize="16" FontWeight="SemiBold" Opacity="{Binding BattlesTabOpacity}" HorizontalAlignment="Center"/>
+              <Border Height="2" CornerRadius="1" Background="#C8CDD8" IsVisible="{Binding IsBattlesTabSelected}" HorizontalAlignment="Stretch" Margin="12,0"/>
+            </StackPanel>
+          </Button>
+        </Grid>
       </Border>
     </Grid>
   </Border>

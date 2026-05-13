@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Ascendex.Controls"
+             xmlns:vm="clr-namespace:Ascendex.ViewModels"
+             mc:Ignorable="d"
+             d:DesignWidth="430"
+             d:DesignHeight="860"
+             x:Class="Ascendex.Views.BattlesView"
+             x:DataType="vm:MainViewModel">
+  <Design.DataContext>
+    <vm:MainViewModel />
+  </Design.DataContext>
+
+  <UserControl.Styles>
+    <Style Selector="Button.staticClick">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="RenderTransform" Value="none"/>
+      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+      </Style>
+      <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+      </Style>
+      <Style Selector="^:pressed">
+        <Setter Property="RenderTransform" Value="none"/>
+      </Style>
+      <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+      </Style>
+    </Style>
+  </UserControl.Styles>
+
+  <Grid Margin="16,18" RowDefinitions="Auto,*" RowSpacing="14">
+    <controls:OutlinedTextBlock Text="Battles" Foreground="White" FontSize="28" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1.5"/>
+
+    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" AllowAutoHide="True">
+      <ItemsControl ItemsSource="{Binding BattleBars}" HorizontalAlignment="Stretch">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Spacing="12" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:PokemonTrainingBarViewModel">
+            <Button Classes="staticClick" Command="{Binding ToggleTrainingCommand}" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+              <Grid Height="68">
+                <Grid ColumnDefinitions="*,2,4.5*">
+                  <Border Background="{Binding AccentBrush}">
+                    <controls:OutlinedTextBlock Text="{Binding Level}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28" FontWeight="SemiBold" Foreground="White" OutlineBrush="Black" OutlineThickness="1.5"/>
+                  </Border>
+
+                  <Border Grid.Column="1" Background="White"/>
+
+                  <Grid Grid.Column="2" ClipToBounds="True">
+                    <Border Background="#4B505A"/>
+                    <Border Background="{Binding AccentBrush}" RenderTransformOrigin="0,0.5">
+                      <Border.RenderTransform>
+                        <ScaleTransform ScaleX="{Binding ProgressFraction}" />
+                      </Border.RenderTransform>
+                    </Border>
+                    <controls:OutlinedTextBlock Margin="14,0" Text="{Binding Name}" VerticalAlignment="Center" Foreground="White" FontSize="22" FontWeight="Medium" OutlineBrush="Black" OutlineThickness="1.5"/>
+                    <controls:OutlinedTextBlock Margin="0,0,10,6" Text="{Binding TimeRemainingText}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Foreground="White" FontSize="11" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1"/>
+                  </Grid>
+                </Grid>
+
+                <Border Background="Transparent" BorderBrush="{Binding TrainingBorderBrush}" BorderThickness="{Binding TrainingBorderThickness}" IsHitTestVisible="False"/>
+              </Grid>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </Grid>
+</UserControl>
