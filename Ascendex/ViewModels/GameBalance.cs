@@ -1,7 +1,7 @@
 namespace Ascendex.ViewModels;
 
 /// <summary>
-/// All numeric knobs that affect how fast things fill, unlock, and scale. Tune here; logic lives in view models.
+/// Numeric knobs for pacing, scaling, unlocks, and economy. Tune here; lookup helpers live beside this type; presentation lives in <see cref="MagicNumbersUI"/>.
 /// </summary>
 public static class GameBalance
 {
@@ -14,16 +14,13 @@ public static class GameBalance
         /// <summary>Progress added each tick before any speed multiplier (party levels, battle clears, etc.).</summary>
         public const double ProgressPerTick = 1;
 
-        /// <summary>
-        /// Route Pokémon: required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^(Level−1).
-        /// </summary>
-        public const double RoutePokemonProgressRequiredPerLevelExponent = 1.15;
+		/// <summary>Starting required progress for a new route Pokémon (before per-level exponent scaling).</summary>
+		public const double DefaultBaseProgressRequired = 20;
 
-        /// <summary>Bar outline when not actively training.</summary>
-        public const double IdleTrainingBorderThickness = 1;
-
-        /// <summary>Bar outline when this row is the one training.</summary>
-        public const double ActiveTrainingBorderThickness = 4;
+		/// <summary>
+		/// Route Pokémon: required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^Level (Level starts at 0).
+		/// </summary>
+		public const double RoutePokemonProgressRequiredPerLevelExponent = 1.08;
 
         /// <summary>Floor for external speed multipliers so bad values cannot freeze the bar.</summary>
         public const double MinExternalSpeedMultiplier = 0.05;
@@ -33,9 +30,6 @@ public static class GameBalance
 
         /// <summary>Used when no speed callback is supplied, or the callback returns NaN/infinity.</summary>
         public const double NeutralSpeedMultiplier = 1.0;
-
-        /// <summary>Time-remaining text uses m:ss at or above this many seconds; below shows "Ns".</summary>
-        public const int SecondsBeforeMinuteTimeFormat = 60;
     }
 
     /// <summary>How many type counter points a route Pokémon grants per level-up, by evolution chain length and active stage.</summary>
@@ -56,35 +50,12 @@ public static class GameBalance
         public const int ThreePlusFormMiddleStagePoints = 8;
 
         public const int ThreePlusFormLateStagePoints = 12;
-
-        public static int PointsForChainStage(int evolutionChainLength, int activeStageIndexZeroBased)
-        {
-            if (evolutionChainLength <= 1)
-            {
-                return SingleFormSpeciesPointsPerLevel;
-            }
-
-            if (evolutionChainLength == 2)
-            {
-                return activeStageIndexZeroBased == 0 ? TwoFormFirstStagePoints : TwoFormFinalStagePoints;
-            }
-
-            return activeStageIndexZeroBased switch
-            {
-                0 => ThreePlusFormFirstStagePoints,
-                1 => ThreePlusFormMiddleStagePoints,
-                _ => ThreePlusFormLateStagePoints,
-            };
-        }
     }
 
     /// <summary>Route areas and wild Pokémon bar pacing.</summary>
     public static class Routes
     {
-        /// <summary>Starting required progress for a new route Pokémon (before per-level exponent scaling).</summary>
-        public const double DefaultBaseProgressRequired = 30;
-
-        /// <summary>Reveal the next route when any single Pokémon in the previous area reaches at least this level.</summary>
+        /// <summary>Reveal the next route when any single Pokémon in the previous area reaches at least this bar level (0-based).</summary>
         public const int MinPokemonLevelToUnlockNextArea = 5;
     }
 
@@ -95,12 +66,12 @@ public static class GameBalance
         public const double FirstTrainerBaseProgress = 50000;
 
         /// <summary>Each trainer after the first: base × step^(order−1). Raise for a steeper difficulty curve.</summary>
-        public const double PerTrainerDifficultyStep = 1.2;
+        public const double PerTrainerDifficultyStep = 1.3;
 
         /// <summary>
-        /// Battle trainers: required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^(Level−1).
+        /// Battle trainers: required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^Level (Level starts at 0).
         /// </summary>
-        public const double BattleProgressRequiredPerLevelExponent = 1.15;
+        public const double BattleProgressRequiredPerLevelExponent = 1.07;
 
         /// <summary>Battle bar speed uses: min(cap, baseline + bonus × total type levels from route training).</summary>
         public const double BattleSpeedMultiplierBaseline = 1.0;
@@ -116,7 +87,7 @@ public static class GameBalance
 
         /// <summary>
         /// Route training speed bonus per clear for each battle row, same order as the battles lineup (Brock, Misty, … Blue).
-        /// Each trainer's clears (level − 1) add this weight to the bonus sum. Extra rows beyond this array use the last entry.
+        /// Each trainer's completed cycles (bar level, starting from 0) add this weight to the bonus sum. Extra rows beyond this array use the last entry.
         /// </summary>
         public static readonly double[] RouteTrainingBonusPerClearByTrainerIndex =
         {
@@ -127,39 +98,7 @@ public static class GameBalance
         /// <summary>Cap on the battle-clear route training multiplier.</summary>
         public const double RouteTrainingSpeedMultiplierCap = int.MaxValue;
 
-        /// <summary>Weight applied to each clear for <paramref name="trainerIndexZeroBased"/>; out-of-range indices use the last configured weight.</summary>
-        public static double RouteTrainingBonusWeightForTrainer(int trainerIndexZeroBased)
-        {
-            var weights = RouteTrainingBonusPerClearByTrainerIndex;
-            if (weights.Length == 0)
-            {
-                return 0;
-            }
-
-            if (trainerIndexZeroBased < 0)
-            {
-                return 0;
-            }
-
-            if (trainerIndexZeroBased >= weights.Length)
-            {
-                return weights[^1];
-            }
-
-            return weights[trainerIndexZeroBased];
-        }
-
-        /// <summary>Unlock the next trainer row when the previous trainer’s level is at least this (2 = one full clear from level 1).</summary>
-        public const int MinTrainerLevelToRevealNextBattle = 2;
-    }
-
-    /// <summary>Non-gameplay presentation (tabs, chrome).</summary>
-    public static class Ui
-    {
-        /// <summary>Bottom bar tab (Routes / Battles): fill when that tab is selected.</summary>
-        public const string MainTabSelectedBackground = "#323841";
-
-        /// <summary>Bottom bar tab: fill when that tab is not selected.</summary>
-        public const string MainTabUnselectedBackground = "#22252C";
+        /// <summary>Unlock the next trainer row when the previous trainer’s level is at least this (1 = one full clear from starting level 0).</summary>
+        public const int MinTrainerLevelToRevealNextBattle = 1;
     }
 }

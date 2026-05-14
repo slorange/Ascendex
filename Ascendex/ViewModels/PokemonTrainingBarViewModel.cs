@@ -45,7 +45,13 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
         if (_evolutionChain != null)
         {
-            Level = 1;
+            Level = 0;
+            // Level defaults to 0 before assignment, so OnLevelChanged does not run; still need first stage name/colors.
+            ApplyEvolutionStageForCurrentLevel();
+            OnPropertyChanged(nameof(ProgressRequired));
+            OnPropertyChanged(nameof(ProgressFraction));
+            OnPropertyChanged(nameof(TimeRemainingText));
+            _recordLevelChanged(this);
         }
         else
         {
@@ -53,7 +59,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             TypeKey = typeKey;
             AccentBrush = Brush.Parse(accentColor);
             AccentForegroundBrush = Brush.Parse(accentForegroundColor);
-            Level = 1;
+            Level = 0;
         }
 
         _trainingTimer = new DispatcherTimer
@@ -77,7 +83,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public double BaseProgressRequired { get; }
 
-    public double ProgressRequired => BaseProgressRequired * Math.Pow(_progressRequiredPerLevelExponent, Math.Max(0, Level - 1));
+    public double ProgressRequired => BaseProgressRequired * Math.Pow(_progressRequiredPerLevelExponent, Math.Max(0, Level));
 
     public double ProgressFraction => ProgressRequired == 0 ? 0 : (double)Progress / ProgressRequired;
 
@@ -85,8 +91,8 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public Thickness TrainingBorderThickness =>
         IsTraining
-            ? new Thickness(GameBalance.Training.ActiveTrainingBorderThickness)
-            : new Thickness(GameBalance.Training.IdleTrainingBorderThickness);
+            ? new Thickness(MagicNumbersUI.TrainingBar.ActiveOutlineThickness)
+            : new Thickness(MagicNumbersUI.TrainingBar.IdleOutlineThickness);
 
     public IBrush TrainingBorderBrush => IsTraining ? ActiveBorderBrush : IdleBorderBrush;
 
@@ -169,7 +175,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     {
         var chainLength = _evolutionChain?.Length ?? 1;
         var stageIndex = GetActiveStageIndexZeroBased();
-        var totalPoints = GameBalance.TypeLevelUp.PointsForChainStage(chainLength, stageIndex);
+        var totalPoints = TypeLevelUpLookup.PointsForChainStage(chainLength, stageIndex);
 
         string primary;
         string? secondary;
@@ -251,8 +257,8 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             var newStageIndex = GetActiveStageIndexZeroBased();
             if (newStageIndex > previousStageIndex)
             {
-                var oldPerLevel = GameBalance.TypeLevelUp.PointsForChainStage(chain.Length, previousStageIndex);
-                var newPerLevel = GameBalance.TypeLevelUp.PointsForChainStage(chain.Length, newStageIndex);
+                var oldPerLevel = TypeLevelUpLookup.PointsForChainStage(chain.Length, previousStageIndex);
+                var newPerLevel = TypeLevelUpLookup.PointsForChainStage(chain.Length, newStageIndex);
                 var oldStage = chain[previousStageIndex];
                 var newStage = chain[newStageIndex];
                 var remove = PokemonTypeContribution.Negate(
@@ -293,9 +299,9 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         var remainingProgress = Math.Max(0, ProgressRequired - Progress);
         var remainingMilliseconds = remainingProgress / effectivePerTick * TrainingTickInterval.TotalMilliseconds;
         var remaining = TimeSpan.FromMilliseconds(remainingMilliseconds);
-        var totalSeconds = Math.Max(0, (int)Math.Floor(remaining.TotalSeconds));
+        var totalSeconds = (int)Math.Ceiling(Math.Max(0, remaining.TotalSeconds));
 
-        if (totalSeconds >= GameBalance.Training.SecondsBeforeMinuteTimeFormat)
+        if (totalSeconds >= MagicNumbersUI.TimeRemaining.SecondsBeforeMinuteTimeFormat)
         {
             return $"{totalSeconds / 60}:{totalSeconds % 60:D2}";
         }

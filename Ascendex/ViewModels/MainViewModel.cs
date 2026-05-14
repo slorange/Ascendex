@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.Input;
@@ -9,8 +10,8 @@ namespace Ascendex.ViewModels;
 
 public class MainViewModel : ViewModelBase
 {
-    private static readonly IBrush MainTabSelectedBrush = Brush.Parse(GameBalance.Ui.MainTabSelectedBackground);
-    private static readonly IBrush MainTabUnselectedBrush = Brush.Parse(GameBalance.Ui.MainTabUnselectedBackground);
+    private static readonly IBrush MainTabSelectedBrush = Brush.Parse(MagicNumbersUI.Tabs.MainTabSelectedBackground);
+    private static readonly IBrush MainTabUnselectedBrush = Brush.Parse(MagicNumbersUI.Tabs.MainTabUnselectedBackground);
 
     private static readonly bool UsePrimaryTypeBarColors = false;
 
@@ -48,8 +49,8 @@ public class MainViewModel : ViewModelBase
             ["Pidgey"] = new("#D8C3A2", "#20150B"),
             ["Rattata"] = new("#B98AD3", "#130819"),
             ["Spearow"] = new("#C68A58", "#201109"),
-            ["Nidoran♀"] = new("#6CC6F8", "#06121A"),
-            ["Nidoran♂"] = new("#B98AD3", "#170A1E"),
+            ["Nidoran(f)"] = new("#6CC6F8", "#06121A"),
+            ["Nidoran(m)"] = new("#B98AD3", "#170A1E"),
             ["Mankey"] = new("#D7C1AE", "#1D1106"),
             ["Caterpie"] = new("#91D469", "#102009"),
             ["Weedle"] = new("#D5A14D", "#241304"),
@@ -121,6 +122,10 @@ public class MainViewModel : ViewModelBase
     private string _currentAreaName = string.Empty;
     private int _selectedAreaIndex;
     private int _selectedMainTab;
+    private PokemonTrainingBarViewModel? _battlesTabTrackedBar;
+    private double _battlesTabProgressFraction;
+    private bool _hasBattlesTabProgressIndicator;
+    private IBrush _battlesTabProgressAccentBrush = Brushes.Transparent;
 
     public MainViewModel()
     {
@@ -181,8 +186,8 @@ public class MainViewModel : ViewModelBase
             "R22",
             "Route 22",
             CreatePokemon("Spearow", "flying"),
-            CreatePokemon("Nidoran♀", "poison"),
-            CreatePokemon("Nidoran♂", "poison"),
+            CreatePokemon("Nidoran(f)", "poison"),
+            CreatePokemon("Nidoran(m)", "poison"),
             CreatePokemon("Mankey", "fighting"));
 
         AddArea(
@@ -355,6 +360,24 @@ public class MainViewModel : ViewModelBase
 
     public IBrush BattlesTabBackground => _selectedMainTab == 1 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
+    public bool HasBattlesTabProgressIndicator
+    {
+        get => _hasBattlesTabProgressIndicator;
+        private set => SetProperty(ref _hasBattlesTabProgressIndicator, value);
+    }
+
+    public double BattlesTabProgressFraction
+    {
+        get => _battlesTabProgressFraction;
+        private set => SetProperty(ref _battlesTabProgressFraction, value);
+    }
+
+    public IBrush BattlesTabProgressAccentBrush
+    {
+        get => _battlesTabProgressAccentBrush;
+        private set => SetProperty(ref _battlesTabProgressAccentBrush, value);
+    }
+
     public ObservableCollection<PokemonTrainingBarViewModel> PokemonBars { get; }
 
     public ObservableCollection<PokemonTrainingBarViewModel> BattleBars { get; }
@@ -392,7 +415,7 @@ public class MainViewModel : ViewModelBase
     private PokemonTrainingBarViewModel CreatePokemon(
         string name,
         string typeKey,
-        double progressRequired = GameBalance.Routes.DefaultBaseProgressRequired)
+        double progressRequired = GameBalance.Training.DefaultBaseProgressRequired)
     {
         var palette = ResolveBarPalette(name, typeKey);
         var evolutionChain = PokemonEvolutionData.TryGetChain(name);
@@ -531,6 +554,7 @@ public class MainViewModel : ViewModelBase
         if (selectedBar.IsTraining)
         {
             selectedBar.SetTraining(false);
+            RefreshBattlesTabProgressTracking();
             return;
         }
 
@@ -543,6 +567,50 @@ public class MainViewModel : ViewModelBase
         }
 
         selectedBar.SetTraining(true);
+        RefreshBattlesTabProgressTracking();
+    }
+
+    private void OnBattlesTabTrackedBarPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(PokemonTrainingBarViewModel.Progress)
+            or nameof(PokemonTrainingBarViewModel.ProgressFraction)
+            or nameof(PokemonTrainingBarViewModel.AccentBrush))
+        {
+            UpdateBattlesTabProgressBindings();
+        }
+    }
+
+    private void RefreshBattlesTabProgressTracking()
+    {
+        if (_battlesTabTrackedBar != null)
+        {
+            _battlesTabTrackedBar.PropertyChanged -= OnBattlesTabTrackedBarPropertyChanged;
+            _battlesTabTrackedBar = null;
+        }
+
+        _battlesTabTrackedBar = _allBattleBars.FirstOrDefault(b => b.IsTraining);
+        if (_battlesTabTrackedBar != null)
+        {
+            _battlesTabTrackedBar.PropertyChanged += OnBattlesTabTrackedBarPropertyChanged;
+        }
+
+        UpdateBattlesTabProgressBindings();
+    }
+
+    private void UpdateBattlesTabProgressBindings()
+    {
+        var bar = _battlesTabTrackedBar;
+        if (bar is null)
+        {
+            HasBattlesTabProgressIndicator = false;
+            BattlesTabProgressFraction = 0;
+            BattlesTabProgressAccentBrush = Brushes.Transparent;
+            return;
+        }
+
+        HasBattlesTabProgressIndicator = true;
+        BattlesTabProgressFraction = bar.ProgressFraction;
+        BattlesTabProgressAccentBrush = bar.AccentBrush;
     }
 
     /// <summary>Sum of every type counter (route Pokémon type points).</summary>
@@ -556,14 +624,36 @@ public class MainViewModel : ViewModelBase
         return Math.Min(multiplier, GameBalance.Battles.BattleSpeedMultiplierCap);
     }
 
+    /// <summary>Weight from <see cref="GameBalance.Battles.RouteTrainingBonusPerClearByTrainerIndex"/>; out-of-range indices use the last entry.</summary>
+    private static double RouteTrainingBonusWeightForTrainer(int trainerIndexZeroBased)
+    {
+        var weights = GameBalance.Battles.RouteTrainingBonusPerClearByTrainerIndex;
+        if (weights.Length == 0)
+        {
+            return 0;
+        }
+
+        if (trainerIndexZeroBased < 0)
+        {
+            return 0;
+        }
+
+        if (trainerIndexZeroBased >= weights.Length)
+        {
+            return weights[^1];
+        }
+
+        return weights[trainerIndexZeroBased];
+    }
+
     /// <summary>Battle clears weighted per trainer → faster progress when training Pokémon on routes.</summary>
     private double GetPokemonTrainingSpeedFromBattleClears()
     {
         var bonus = 0.0;
         for (var i = 0; i < _allBattleBars.Count; i++)
         {
-            var clears = Math.Max(0, _allBattleBars[i].Level - 1);
-            bonus += clears * GameBalance.Battles.RouteTrainingBonusWeightForTrainer(i);
+            var clears = Math.Max(0, _allBattleBars[i].Level);
+            bonus += clears * RouteTrainingBonusWeightForTrainer(i);
         }
 
         var multiplier = GameBalance.Battles.RouteTrainingSpeedMultiplierBaseline + bonus;
@@ -616,7 +706,7 @@ public class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Each trainer row appears only after the previous trainer reaches <see cref="GameBalance.Battles.MinTrainerLevelToRevealNextBattle"/> (one full clear from level 1). Brock is always shown.</summary>
+    /// <summary>Each trainer row appears only after the previous trainer reaches <see cref="GameBalance.Battles.MinTrainerLevelToRevealNextBattle"/> (one full clear from starting level 0). Brock is always shown.</summary>
     private void UpdateBattleVisibility()
     {
         for (var index = 0; index < _allBattleBars.Count; index++)

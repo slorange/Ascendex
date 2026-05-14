@@ -45,8 +45,18 @@
             </Border>
           </Button>
           <Button Grid.Column="1" Classes="mainTab" Command="{Binding SelectBattlesTabCommand}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
-            <Border Background="{Binding BattlesTabBackground}" Padding="8,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-              <TextBlock Text="Battles" Foreground="White" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Border Background="{Binding BattlesTabBackground}" Padding="8,8,8,6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+              <Grid RowDefinitions="Auto,3" RowSpacing="4">
+                <TextBlock Grid.Row="0" Text="Battles" Foreground="White" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Grid Grid.Row="1" Height="3" IsVisible="{Binding HasBattlesTabProgressIndicator}" ClipToBounds="True">
+                  <Border Background="#4B505A"/>
+                  <Border Background="{Binding BattlesTabProgressAccentBrush}" RenderTransformOrigin="0,0.5">
+                    <Border.RenderTransform>
+                      <ScaleTransform ScaleX="{Binding BattlesTabProgressFraction}"/>
+                    </Border.RenderTransform>
+                  </Border>
+                </Grid>
+              </Grid>
             </Border>
           </Button>
         </Grid>
