@@ -18,7 +18,7 @@
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="BorderBrush" Value="Transparent"/>
       <Setter Property="BorderThickness" Value="0"/>
-      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="Padding" Value="0"/>
       <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
       <Setter Property="VerticalContentAlignment" Value="Center"/>
       <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
@@ -37,19 +37,17 @@
         <views:BattlesView IsVisible="{Binding IsBattlesTabSelected}" />
       </Panel>
 
-      <Border Grid.Row="1" Background="#1A1D22" BorderBrush="#3F4450" BorderThickness="0,1,0,0" Padding="8,10">
-        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-          <Button Grid.Column="0" Classes="mainTab" Command="{Binding SelectRoutesTabCommand}">
-            <StackPanel Spacing="6">
-              <TextBlock Text="Routes" Foreground="White" FontSize="16" FontWeight="SemiBold" Opacity="{Binding RoutesTabOpacity}" HorizontalAlignment="Center"/>
-              <Border Height="2" CornerRadius="1" Background="#C8CDD8" IsVisible="{Binding IsRoutesTabSelected}" HorizontalAlignment="Stretch" Margin="12,0"/>
-            </StackPanel>
+      <Border Grid.Row="1" Background="#1A1D22" BorderBrush="#3F4450" BorderThickness="0,1,0,0" Padding="0,8">
+        <Grid ColumnDefinitions="*,*">
+          <Button Grid.Column="0" Classes="mainTab" Command="{Binding SelectRoutesTabCommand}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+            <Border Background="{Binding RoutesTabBackground}" Padding="8,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+              <TextBlock Text="Routes" Foreground="White" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
           </Button>
-          <Button Grid.Column="1" Classes="mainTab" Command="{Binding SelectBattlesTabCommand}">
-            <StackPanel Spacing="6">
-              <TextBlock Text="Battles" Foreground="White" FontSize="16" FontWeight="SemiBold" Opacity="{Binding BattlesTabOpacity}" HorizontalAlignment="Center"/>
-              <Border Height="2" CornerRadius="1" Background="#C8CDD8" IsVisible="{Binding IsBattlesTabSelected}" HorizontalAlignment="Stretch" Margin="12,0"/>
-            </StackPanel>
+          <Button Grid.Column="1" Classes="mainTab" Command="{Binding SelectBattlesTabCommand}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+            <Border Background="{Binding BattlesTabBackground}" Padding="8,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+              <TextBlock Text="Battles" Foreground="White" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
           </Button>
         </Grid>
       </Border>

@@ -39,6 +39,46 @@ public static class GameBalance
         public const int SecondsBeforeMinuteTimeFormat = 60;
     }
 
+    /// <summary>How many type counter points a route Pokémon grants per level-up, by evolution chain length and active stage.</summary>
+    public static class TypeLevelUp
+    {
+        /// <summary>No evolution chain (single form): points to its type(s) each level.</summary>
+        public const int SingleFormSpeciesPointsPerLevel = 8;
+
+        /// <summary>Two-form chain: first stage then final stage points per level.</summary>
+        public const int TwoFormFirstStagePoints = 6;
+
+        /// <summary>Two-form chain: final stage points per level.</summary>
+        public const int TwoFormFinalStagePoints = 10;
+
+        /// <summary>Three-or-more-form chain: first, middle, and late stages (third index onward uses the same value).</summary>
+        public const int ThreePlusFormFirstStagePoints = 4;
+
+        public const int ThreePlusFormMiddleStagePoints = 8;
+
+        public const int ThreePlusFormLateStagePoints = 12;
+
+        public static int PointsForChainStage(int evolutionChainLength, int activeStageIndexZeroBased)
+        {
+            if (evolutionChainLength <= 1)
+            {
+                return SingleFormSpeciesPointsPerLevel;
+            }
+
+            if (evolutionChainLength == 2)
+            {
+                return activeStageIndexZeroBased == 0 ? TwoFormFirstStagePoints : TwoFormFinalStagePoints;
+            }
+
+            return activeStageIndexZeroBased switch
+            {
+                0 => ThreePlusFormFirstStagePoints,
+                1 => ThreePlusFormMiddleStagePoints,
+                _ => ThreePlusFormLateStagePoints,
+            };
+        }
+    }
+
     /// <summary>Route areas and wild Pokémon bar pacing.</summary>
     public static class Routes
     {
@@ -58,13 +98,13 @@ public static class GameBalance
         /// <summary>Each trainer after the first: base × step^(order−1). Raise for a steeper difficulty curve.</summary>
         public const double PerTrainerDifficultyStep = 1.5;
 
-        /// <summary>Battle bar speed uses: min(cap, baseline + bonusPerLevel × total party levels).</summary>
+        /// <summary>Battle bar speed uses: min(cap, baseline + bonus × total type levels from route training).</summary>
         public const double BattleSpeedMultiplierBaseline = 1.0;
 
-        /// <summary>Battle bar speed: add this × (sum of all Pokémon levels everywhere) to the baseline.</summary>
-        public const double BattleSpeedBonusPerTotalPartyLevel = 0.1;
+        /// <summary>Battle bar speed: add this × (sum of all type counter points) to the baseline.</summary>
+        public const double BattleSpeedBonusPerTotalTypeLevel = 0.1;
 
-        /// <summary>Cap on the party-level battle speed multiplier.</summary>
+        /// <summary>Cap on the type-based battle speed multiplier.</summary>
         public const double BattleSpeedMultiplierCap = int.MaxValue;
 
         /// <summary>Route training uses: min(cap, baseline + Σ (clears on trainer i × <see cref="RouteTrainingBonusPerClearByTrainerIndex"/>[i])).</summary>
@@ -109,13 +149,13 @@ public static class GameBalance
         public const int MinTrainerLevelToRevealNextBattle = 2;
     }
 
-    /// <summary>Non-gameplay presentation that still affects how strong selected tabs read.</summary>
+    /// <summary>Non-gameplay presentation (tabs, chrome).</summary>
     public static class Ui
     {
-        /// <summary>Opacity for the inactive main tab label (Routes / Battles).</summary>
-        public const double InactiveMainTabLabelOpacity = 0.45;
+        /// <summary>Bottom bar tab (Routes / Battles): fill when that tab is selected.</summary>
+        public const string MainTabSelectedBackground = "#323841";
 
-        /// <summary>Opacity for the selected main tab label.</summary>
-        public const double ActiveMainTabLabelOpacity = 1.0;
+        /// <summary>Bottom bar tab: fill when that tab is not selected.</summary>
+        public const string MainTabUnselectedBackground = "#22252C";
     }
 }

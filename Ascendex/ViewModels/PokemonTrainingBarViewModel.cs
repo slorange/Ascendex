@@ -13,10 +13,11 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     private static readonly IBrush ActiveBorderBrush = Brushes.White;
     private static readonly TimeSpan TrainingTickInterval = TimeSpan.FromMilliseconds(GameBalance.Training.TickIntervalMilliseconds);
 
-    private readonly Action<string> _recordTypeLevelUp;
+    private readonly Action<TypeLevelContribution[]> _recordTypeLevelContributions;
     private readonly Action<PokemonTrainingBarViewModel> _recordLevelChanged;
     private readonly Action<PokemonTrainingBarViewModel> _toggleTrainingRequested;
     private readonly Func<double>? _getProgressMultiplier;
+    private readonly EvolutionStage[]? _evolutionChain;
     private readonly DispatcherTimer _trainingTimer;
 
     public PokemonTrainingBarViewModel(
@@ -26,21 +27,31 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         string accentForegroundColor,
         Action<PokemonTrainingBarViewModel> toggleTrainingRequested,
         Action<PokemonTrainingBarViewModel> recordLevelChanged,
-        Action<string> recordTypeLevelUp,
+        Action<TypeLevelContribution[]> recordTypeLevelContributions,
         double progressRequired,
-        Func<double>? getProgressMultiplier = null)
+        Func<double>? getProgressMultiplier = null,
+        EvolutionStage[]? evolutionChain = null)
     {
-        _recordTypeLevelUp = recordTypeLevelUp;
+        _recordTypeLevelContributions = recordTypeLevelContributions;
         _recordLevelChanged = recordLevelChanged;
         _toggleTrainingRequested = toggleTrainingRequested;
         _getProgressMultiplier = getProgressMultiplier;
-        Name = name;
-        TypeKey = typeKey;
-        AccentBrush = Brush.Parse(accentColor);
-        AccentForegroundBrush = Brush.Parse(accentForegroundColor);
+        _evolutionChain = evolutionChain is { Length: > 0 } ? evolutionChain : null;
         BaseProgressRequired = progressRequired;
-        Level = 1;
         Progress = 0;
+
+        if (_evolutionChain != null)
+        {
+            Level = 1;
+        }
+        else
+        {
+            Name = name;
+            TypeKey = typeKey;
+            AccentBrush = Brush.Parse(accentColor);
+            AccentForegroundBrush = Brush.Parse(accentForegroundColor);
+            Level = 1;
+        }
 
         _trainingTimer = new DispatcherTimer
         {
@@ -49,13 +60,17 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         _trainingTimer.Tick += OnTrainingTimerTick;
     }
 
-    public string Name { get; }
+    [ObservableProperty]
+    private string _name = string.Empty;
 
-    public string TypeKey { get; }
+    [ObservableProperty]
+    private string _typeKey = string.Empty;
 
-    public IBrush AccentBrush { get; }
+    [ObservableProperty]
+    private IBrush _accentBrush = Brushes.Transparent;
 
-    public IBrush AccentForegroundBrush { get; }
+    [ObservableProperty]
+    private IBrush _accentForegroundBrush = Brushes.Transparent;
 
     public double BaseProgressRequired { get; }
 
@@ -93,10 +108,93 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     partial void OnLevelChanged(int value)
     {
+        ApplyEvolutionStageForCurrentLevel();
         OnPropertyChanged(nameof(ProgressRequired));
         OnPropertyChanged(nameof(ProgressFraction));
         OnPropertyChanged(nameof(TimeRemainingText));
         _recordLevelChanged(this);
+    }
+
+    private int GetActiveStageIndexZeroBased()
+    {
+        if (_evolutionChain is not { Length: > 0 })
+        {
+            return 0;
+        }
+
+        var idx = 0;
+        for (var i = 0; i < _evolutionChain.Length; i++)
+        {
+            if (Level >= _evolutionChain[i].MinLevel)
+            {
+                idx = i;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return idx;
+    }
+
+    private bool TryGetResolvedEvolutionStage(out EvolutionStage stage)
+    {
+        stage = default;
+        if (_evolutionChain is not { Length: > 0 })
+        {
+            return false;
+        }
+
+        stage = _evolutionChain[0];
+        foreach (var s in _evolutionChain)
+        {
+            if (Level >= s.MinLevel)
+            {
+                stage = s;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    private void RecordTypeLevelContributionsForCurrentStage()
+    {
+        var chainLength = _evolutionChain?.Length ?? 1;
+        var stageIndex = GetActiveStageIndexZeroBased();
+        var totalPoints = GameBalance.TypeLevelUp.PointsForChainStage(chainLength, stageIndex);
+
+        string primary;
+        string? secondary;
+        if (TryGetResolvedEvolutionStage(out var resolved))
+        {
+            primary = resolved.TypeKey;
+            secondary = resolved.SecondaryTypeKey;
+        }
+        else
+        {
+            primary = TypeKey;
+            secondary = null;
+        }
+
+        _recordTypeLevelContributions(PokemonTypeContribution.SplitTotal(primary, secondary, totalPoints));
+    }
+
+    private void ApplyEvolutionStageForCurrentLevel()
+    {
+        if (!TryGetResolvedEvolutionStage(out var stage))
+        {
+            return;
+        }
+
+        Name = stage.Name;
+        TypeKey = stage.TypeKey;
+        AccentBrush = Brush.Parse(stage.AccentColor);
+        AccentForegroundBrush = Brush.Parse(stage.ForegroundColor);
     }
 
     partial void OnIsTrainingChanged(bool value)
@@ -143,7 +241,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
         Progress = 0;
         Level++;
-        _recordTypeLevelUp(TypeKey);
+        RecordTypeLevelContributionsForCurrentStage();
     }
 
     private double GetClampedProgressMultiplier()

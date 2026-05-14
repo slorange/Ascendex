@@ -2,12 +2,16 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.Input;
 
 namespace Ascendex.ViewModels;
 
 public class MainViewModel : ViewModelBase
 {
+    private static readonly IBrush MainTabSelectedBrush = Brush.Parse(GameBalance.Ui.MainTabSelectedBackground);
+    private static readonly IBrush MainTabUnselectedBrush = Brush.Parse(GameBalance.Ui.MainTabUnselectedBackground);
+
     private static readonly bool UsePrimaryTypeBarColors = false;
 
     private static readonly IReadOnlyDictionary<string, PokemonBarPalette> TypeBarPalettes =
@@ -337,8 +341,8 @@ public class MainViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(IsRoutesTabSelected));
                 OnPropertyChanged(nameof(IsBattlesTabSelected));
-                OnPropertyChanged(nameof(RoutesTabOpacity));
-                OnPropertyChanged(nameof(BattlesTabOpacity));
+                OnPropertyChanged(nameof(RoutesTabBackground));
+                OnPropertyChanged(nameof(BattlesTabBackground));
             }
         }
     }
@@ -347,9 +351,9 @@ public class MainViewModel : ViewModelBase
 
     public bool IsBattlesTabSelected => _selectedMainTab == 1;
 
-    public double RoutesTabOpacity => _selectedMainTab == 0 ? GameBalance.Ui.ActiveMainTabLabelOpacity : GameBalance.Ui.InactiveMainTabLabelOpacity;
+    public IBrush RoutesTabBackground => _selectedMainTab == 0 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
-    public double BattlesTabOpacity => _selectedMainTab == 1 ? GameBalance.Ui.ActiveMainTabLabelOpacity : GameBalance.Ui.InactiveMainTabLabelOpacity;
+    public IBrush BattlesTabBackground => _selectedMainTab == 1 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
     public ObservableCollection<PokemonTrainingBarViewModel> PokemonBars { get; }
 
@@ -391,6 +395,7 @@ public class MainViewModel : ViewModelBase
         double progressRequired = GameBalance.Routes.DefaultBaseProgressRequired)
     {
         var palette = ResolveBarPalette(name, typeKey);
+        var evolutionChain = PokemonEvolutionData.TryGetChain(name);
 
         return new PokemonTrainingBarViewModel(
             name,
@@ -399,9 +404,10 @@ public class MainViewModel : ViewModelBase
             palette.ForegroundColor,
             ToggleTraining,
             OnPokemonLevelChanged,
-            RecordTypeLevelUp,
+            RecordTypeLevelContributions,
             progressRequired,
-            GetPokemonTrainingSpeedFromBattleClears);
+            GetPokemonTrainingSpeedFromBattleClears,
+            evolutionChain);
     }
 
     private static PokemonBarPalette ResolveBarPalette(string name, string typeKey)
@@ -501,9 +507,9 @@ public class MainViewModel : ViewModelBase
             palette.ForegroundColor,
             ToggleBattleTraining,
             OnBattleLevelChanged,
-            _ => { },
+            static (TypeLevelContribution[] _) => { },
             progressRequired,
-            GetBattleSpeedFromPartyLevels);
+            GetBattleSpeedFromTypeLevels);
         _allBattleBars.Add(bar);
         BattleBars.Add(bar);
     }
@@ -527,14 +533,14 @@ public class MainViewModel : ViewModelBase
         selectedBar.SetTraining(true);
     }
 
-    /// <summary>Sum of every Pokémon's current level across all routes.</summary>
-    private int GetTotalPartyLevels() => _allPokemonBars.Sum(p => p.Level);
+    /// <summary>Sum of every type counter (route Pokémon type points).</summary>
+    private int GetTotalTypeLevels() => TypeCounters.Sum(c => c.Count);
 
-    /// <summary>More total party levels → faster progress on battle bars.</summary>
-    private double GetBattleSpeedFromPartyLevels()
+    /// <summary>Higher total type levels → faster progress on battle bars.</summary>
+    private double GetBattleSpeedFromTypeLevels()
     {
-        var sum = GetTotalPartyLevels();
-        var multiplier = GameBalance.Battles.BattleSpeedMultiplierBaseline + sum * GameBalance.Battles.BattleSpeedBonusPerTotalPartyLevel;
+        var sum = GetTotalTypeLevels();
+        var multiplier = GameBalance.Battles.BattleSpeedMultiplierBaseline + sum * GameBalance.Battles.BattleSpeedBonusPerTotalTypeLevel;
         return Math.Min(multiplier, GameBalance.Battles.BattleSpeedMultiplierCap);
     }
 
@@ -552,11 +558,31 @@ public class MainViewModel : ViewModelBase
         return Math.Min(multiplier, GameBalance.Battles.RouteTrainingSpeedMultiplierCap);
     }
 
-    private void RecordTypeLevelUp(string typeKey)
+    private void RecordTypeLevelContributions(TypeLevelContribution[] contributions)
     {
-        if (_typeCountersByKey.TryGetValue(typeKey, out var counter))
+        var any = false;
+        foreach (var c in contributions)
         {
-            counter.Count++;
+            if (c.Points == 0)
+            {
+                continue;
+            }
+
+            any = true;
+            if (_typeCountersByKey.TryGetValue(c.TypeKey, out var counter))
+            {
+                counter.Count += c.Points;
+            }
+        }
+
+        if (!any)
+        {
+            return;
+        }
+
+        foreach (var battleBar in _allBattleBars)
+        {
+            battleBar.NotifyTimeRemainingChanged();
         }
     }
 
