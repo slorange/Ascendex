@@ -10,6 +10,7 @@ public readonly record struct TypeLevelContribution(string TypeKey, int Points);
 /// <see cref="TypeKey"/> is the primary type (bar colors); <see cref="SecondaryTypeKey"/> is optional for dual typings and type counter splits.
 /// The first stage uses MinLevel 0; later stages use the same numeric thresholds as classic Gen 1 RBY levels (e.g. Ivysaur at bar 16).
 /// Stone and trade stand-ins in the data follow those same level numbers.
+/// <see cref="AccentColor"/> / <see cref="ForegroundColor"/> follow recognizable Sugimori-style palettes (not pure type chips).
 /// </summary>
 public readonly record struct EvolutionStage(
     int MinLevel,
@@ -52,6 +53,7 @@ public static class PokemonTypeContribution
     }
 }
 
+/// <summary>Evolution-stage bar colors for route Pokémon. Covers every species in this dictionary (Kanto lines used in Ascendex), not the full 151 National Dex.</summary>
 public static class PokemonEvolutionData
 {
     private static readonly Dictionary<string, EvolutionStage[]> Chains = new()
@@ -60,19 +62,19 @@ public static class PokemonEvolutionData
         [
             new(0, "Bulbasaur", "grass", "#78C86A", "#10210C", "poison"),
             new(16, "Ivysaur", "grass", "#5FAE52", "#081006", "poison"),
-            new(32, "Venusaur", "grass", "#4E9448", "#071405", "poison"),
+            new(32, "Venusaur", "grass", "#489040", "#071003", "poison"),
         ],
         ["Charmander"] =
         [
             new(0, "Charmander", "fire", "#E78A43", "#2B1202"),
             new(16, "Charmeleon", "fire", "#D96A2F", "#1E0C01"),
-            new(36, "Charizard", "fire", "#F07828", "#2A0E02", "flying"),
+            new(36, "Charizard", "fire", "#F08028", "#2A0C02", "flying"),
         ],
         ["Squirtle"] =
         [
             new(0, "Squirtle", "water", "#73B9F2", "#071C2A"),
             new(16, "Wartortle", "water", "#5A9FD8", "#061525"),
-            new(36, "Blastoise", "water", "#4A8BC8", "#050F1C"),
+            new(36, "Blastoise", "water", "#3C7CC0", "#040C14"),
         ],
         ["Pikachu"] =
         [
@@ -82,7 +84,7 @@ public static class PokemonEvolutionData
         ["Eevee"] =
         [
             new(0, "Eevee", "normal", "#C9A27A", "#24150A"),
-            new(25, "Jolteon", "electric", "#F5D24A", "#2A2204"),
+            new(25, "Jolteon", "electric", "#F8E030", "#262004"),
         ],
         ["Pidgey"] =
         [
@@ -104,13 +106,13 @@ public static class PokemonEvolutionData
         [
             new(0, "Nidoran(f)", "poison", "#6CC6F8", "#06121A"),
             new(16, "Nidorina", "poison", "#5AA8D8", "#050F16"),
-            new(35, "Nidoqueen", "ground", "#D0B05C", "#241904", "poison"),
+            new(35, "Nidoqueen", "ground", "#8CA8C0", "#101820", "poison"),
         ],
         ["Nidoran(m)"] =
         [
             new(0, "Nidoran(m)", "poison", "#B98AD3", "#170A1E"),
             new(16, "Nidorino", "poison", "#9A70C0", "#120818"),
-            new(35, "Nidoking", "ground", "#C9A067", "#211407", "poison"),
+            new(35, "Nidoking", "ground", "#9878C8", "#120818", "poison"),
         ],
         ["Mankey"] =
         [
@@ -127,12 +129,12 @@ public static class PokemonEvolutionData
         [
             new(0, "Weedle", "bug", "#D5A14D", "#241304", "poison"),
             new(7, "Kakuna", "bug", "#C08E40", "#201003", "poison"),
-            new(10, "Beedrill", "bug", "#A668C7", "#FFF5FF", "poison"),
+            new(10, "Beedrill", "bug", "#E8D038", "#1A1602", "poison"),
         ],
         ["Ekans"] =
         [
             new(0, "Ekans", "poison", "#8B63B7", "#15091F"),
-            new(22, "Arbok", "poison", "#7A5298", "#12071A"),
+            new(22, "Arbok", "poison", "#984868", "#180410"),
         ],
         ["Sandshrew"] =
         [
@@ -147,7 +149,7 @@ public static class PokemonEvolutionData
         ["Magikarp"] =
         [
             new(0, "Magikarp", "water", "#E36B4E", "#2A0C05"),
-            new(20, "Gyarados", "water", "#5D8FE8", "#071C2A", "flying"),
+            new(20, "Gyarados", "water", "#3A78C8", "#051018", "flying"),
         ],
         ["Clefairy"] =
         [
@@ -157,18 +159,18 @@ public static class PokemonEvolutionData
         ["Zubat"] =
         [
             new(0, "Zubat", "poison", "#6F74C9", "#F3F4FF", "flying"),
-            new(22, "Golbat", "poison", "#5A5FB0", "#0E1028", "flying"),
+            new(22, "Golbat", "poison", "#7058A8", "#0E0818", "flying"),
         ],
         ["Paras"] =
         [
             new(0, "Paras", "bug", "#D4744B", "#2B1207", "grass"),
-            new(24, "Parasect", "bug", "#C06040", "#260F06", "grass"),
+            new(24, "Parasect", "bug", "#C86448", "#1C0C06", "grass"),
         ],
         ["Oddish"] =
         [
             new(0, "Oddish", "grass", "#4F85D1", "#07192B", "poison"),
-            new(21, "Gloom", "grass", "#5FB85B", "#081807", "poison"),
-            new(35, "Vileplume", "grass", "#4A9448", "#061405", "poison"),
+            new(21, "Gloom", "grass", "#6B7FD6", "#0A1228", "poison"),
+            new(35, "Vileplume", "grass", "#DE3D3D", "#2A0505", "poison"),
         ],
         ["Bellsprout"] =
         [
@@ -179,7 +181,7 @@ public static class PokemonEvolutionData
         ["Venonat"] =
         [
             new(0, "Venonat", "bug", "#A267BE", "#16091F"),
-            new(31, "Venomoth", "bug", "#9A5CB0", "#14081C", "poison"),
+            new(31, "Venomoth", "bug", "#C4A8E0", "#180E22", "poison"),
         ],
         ["Abra"] =
         [
@@ -190,17 +192,17 @@ public static class PokemonEvolutionData
         ["Vulpix"] =
         [
             new(0, "Vulpix", "fire", "#F3B16A", "#2A1404"),
-            new(25, "Ninetales", "fire", "#E89A50", "#261003"),
+            new(25, "Ninetales", "fire", "#E8DCC8", "#4A3C34"),
         ],
         ["Meowth"] =
         [
             new(0, "Meowth", "normal", "#DCC584", "#241A08"),
-            new(28, "Persian", "normal", "#C8B070", "#201607"),
+            new(28, "Persian", "normal", "#F0E2C0", "#2A2210"),
         ],
         ["Growlithe"] =
         [
             new(0, "Growlithe", "fire", "#E88B49", "#2B1102"),
-            new(25, "Arcanine", "fire", "#D87830", "#280E02"),
+            new(25, "Arcanine", "fire", "#D86828", "#201004"),
         ],
         ["Psyduck"] =
         [
@@ -211,12 +213,12 @@ public static class PokemonEvolutionData
         [
             new(0, "Poliwag", "water", "#7C9BE8", "#09122B"),
             new(25, "Poliwhirl", "water", "#6A88D8", "#080F24"),
-            new(35, "Poliwrath", "water", "#5D8FE8", "#071C2A", "fighting"),
+            new(35, "Poliwrath", "water", "#4A7098", "#060C14", "fighting"),
         ],
         ["Goldeen"] =
         [
             new(0, "Goldeen", "water", "#F39A74", "#2B1207"),
-            new(33, "Seaking", "water", "#E88860", "#260F06"),
+            new(33, "Seaking", "water", "#F08858", "#261006"),
         ],
         ["Machop"] =
         [
@@ -228,24 +230,24 @@ public static class PokemonEvolutionData
         [
             new(0, "Geodude", "rock", "#A68D63", "#211708", "ground"),
             new(25, "Graveler", "rock", "#8F7A52", "#1C1406", "ground"),
-            new(40, "Golem", "rock", "#9A8060", "#1C1408", "ground"),
+            new(40, "Golem", "rock", "#787860", "#141408", "ground"),
         ],
         ["Gastly"] =
         [
             new(0, "Gastly", "ghost", "#7B6AD0", "#F4F3FF", "poison"),
-            new(25, "Haunter", "ghost", "#6A5AB8", "#0E0C24", "poison"),
-            new(40, "Gengar", "ghost", "#5A4AA0", "#0C0A1E", "poison"),
+            new(25, "Haunter", "ghost", "#5868B8", "#0A1028", "poison"),
+            new(40, "Gengar", "ghost", "#483068", "#F0E8F8", "poison"),
         ],
         ["Cubone"] =
         [
             new(0, "Cubone", "ground", "#C7AF8F", "#21180B"),
-            new(28, "Marowak", "ground", "#B89A78", "#1E1509"),
+            new(28, "Marowak", "ground", "#D09068", "#1A1208"),
         ],
         ["Dratini"] =
         [
             new(0, "Dratini", "dragon", "#8C85EE", "#0E1030"),
-            new(30, "Dragonair", "dragon", "#7A72D8", "#0C0E28"),
-            new(55, "Dragonite", "dragon", "#6D6AE6", "#F4F5FF", "flying"),
+            new(30, "Dragonair", "dragon", "#7BA8E8", "#0A1624"),
+            new(55, "Dragonite", "dragon", "#F2A24A", "#3E1F08", "flying"),
         ],
         ["Diglett"] =
         [
@@ -260,87 +262,87 @@ public static class PokemonEvolutionData
         ["Ponyta"] =
         [
             new(0, "Ponyta", "fire", "#F28C54", "#2A1103"),
-            new(40, "Rapidash", "fire", "#E87840", "#260E02"),
+            new(40, "Rapidash", "fire", "#E88A38", "#281004"),
         ],
         ["Doduo"] =
         [
             new(0, "Doduo", "normal", "#C9A067", "#211407", "flying"),
-            new(31, "Dodrio", "normal", "#B89052", "#1E1206", "flying"),
+            new(31, "Dodrio", "normal", "#A87850", "#1C140A", "flying"),
         ],
         ["Tentacool"] =
         [
-            new(0, "Tentacool", "water", "#5FB4D5", "#072028", "poison"),
-            new(30, "Tentacruel", "water", "#4A9EB8", "#061A20", "poison"),
+            new(0, "Tentacool", "water", "#68C8E8", "#062020", "poison"),
+            new(30, "Tentacruel", "water", "#4078A8", "#050C14", "poison"),
         ],
         ["Slowpoke"] =
         [
             new(0, "Slowpoke", "water", "#E8A8BC", "#2A1020"),
-            new(37, "Slowbro", "water", "#5D8FE8", "#071C2A", "psychic"),
+            new(37, "Slowbro", "water", "#D888A8", "#241018", "psychic"),
         ],
         ["Horsea"] =
         [
             new(0, "Horsea", "water", "#5A8FE5", "#071A2A"),
-            new(32, "Seadra", "water", "#4878D0", "#061523"),
+            new(32, "Seadra", "water", "#3A68C0", "#050C18"),
         ],
         ["Staryu"] =
         [
             new(0, "Staryu", "water", "#C48E4D", "#241507"),
-            new(25, "Starmie", "water", "#5D8FE8", "#071C2A", "psychic"),
+            new(25, "Starmie", "water", "#B060D0", "#16081E", "psychic"),
         ],
         ["Exeggcute"] =
         [
             new(0, "Exeggcute", "grass", "#F0B5D2", "#2A0F1D"),
-            new(25, "Exeggutor", "grass", "#5FB85B", "#081807", "psychic"),
+            new(25, "Exeggutor", "grass", "#DCC848", "#252008", "psychic"),
         ],
         ["Rhyhorn"] =
         [
-            new(0, "Rhyhorn", "ground", "#A78B71", "#22180D", "rock"),
-            new(42, "Rhydon", "ground", "#8F7558", "#1E150B", "rock"),
+            new(0, "Rhyhorn", "ground", "#908878", "#1C1612", "rock"),
+            new(42, "Rhydon", "ground", "#7E7568", "#181410", "rock"),
         ],
         ["Magnemite"] =
         [
-            new(0, "Magnemite", "electric", "#B6C4D7", "#10161D"),
-            new(30, "Magneton", "electric", "#9EACBE", "#0E1218"),
+            new(0, "Magnemite", "electric", "#A8B4C4", "#0C1018"),
+            new(30, "Magneton", "electric", "#8898A8", "#0A1016"),
         ],
         ["Voltorb"] =
         [
             new(0, "Voltorb", "electric", "#E65B5B", "#2A0808"),
-            new(30, "Electrode", "electric", "#D44848", "#260606"),
+            new(30, "Electrode", "electric", "#E8E8E8", "#303030"),
         ],
         ["Seel"] =
         [
             new(0, "Seel", "water", "#D7EEF8", "#0C1C22"),
-            new(34, "Dewgong", "water", "#D7EEF8", "#0C1C22", "ice"),
+            new(34, "Dewgong", "water", "#B0D8EC", "#082028", "ice"),
         ],
         ["Shellder"] =
         [
             new(0, "Shellder", "water", "#7766C8", "#F4F3FF"),
-            new(25, "Cloyster", "water", "#7766C8", "#F4F3FF", "ice"),
+            new(25, "Cloyster", "water", "#584878", "#F0E8FF", "ice"),
         ],
         ["Krabby"] =
         [
             new(0, "Krabby", "water", "#E3714D", "#2A0C05"),
-            new(28, "Kingler", "water", "#D06038", "#260A04"),
+            new(28, "Kingler", "water", "#E85030", "#1C0804"),
         ],
         ["Omanyte"] =
         [
             new(0, "Omanyte", "rock", "#7A92D6", "#09142A", "water"),
-            new(40, "Omastar", "rock", "#6880C0", "#081122", "water"),
+            new(40, "Omastar", "rock", "#5A78C0", "#081018", "water"),
         ],
         ["Kabuto"] =
         [
             new(0, "Kabuto", "rock", "#8A7363", "#1E120C", "water"),
-            new(40, "Kabutops", "rock", "#786250", "#1A100A", "water"),
+            new(40, "Kabutops", "rock", "#5A7868", "#0C140E", "water"),
         ],
         ["Koffing"] =
         [
             new(0, "Koffing", "poison", "#9162B2", "#14091C"),
-            new(35, "Weezing", "poison", "#7E5298", "#110818"),
+            new(35, "Weezing", "poison", "#8090A8", "#101418"),
         ],
         ["Grimer"] =
         [
             new(0, "Grimer", "poison", "#7A5C97", "#F7F4FF"),
-            new(38, "Muk", "poison", "#684A82", "#120A18"),
+            new(38, "Muk", "poison", "#584858", "#F0E8F0"),
         ],
     };
 

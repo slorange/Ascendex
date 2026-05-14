@@ -1,3 +1,5 @@
+using System;
+
 namespace Ascendex.ViewModels;
 
 /// <summary>
@@ -26,7 +28,7 @@ public static class GameBalance
         public const double MinExternalSpeedMultiplier = 0.05;
 
         /// <summary>Ceiling for external speed multipliers so absurd values do not skip levels in one tick.</summary>
-        public const double MaxExternalSpeedMultiplier = 50.0;
+        public const double MaxExternalSpeedMultiplier = int.MaxValue;
 
         /// <summary>Used when no speed callback is supplied, or the callback returns NaN/infinity.</summary>
         public const double NeutralSpeedMultiplier = 1.0;
