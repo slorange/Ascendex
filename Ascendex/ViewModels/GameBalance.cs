@@ -15,10 +15,9 @@ public static class GameBalance
         public const double ProgressPerTick = 1;
 
         /// <summary>
-        /// Required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^(Level−1).
-        /// Applies to both route Pokémon and battle trainers.
+        /// Route Pokémon: required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^(Level−1).
         /// </summary>
-        public const double ProgressRequiredPerLevelExponent = 1.2;
+        public const double RoutePokemonProgressRequiredPerLevelExponent = 1.15;
 
         /// <summary>Bar outline when not actively training.</summary>
         public const double IdleTrainingBorderThickness = 1;
@@ -93,10 +92,15 @@ public static class GameBalance
     public static class Battles
     {
         /// <summary>Brock’s starting required progress; each later trainer multiplies by <see cref="PerTrainerDifficultyStep"/>.</summary>
-        public const double FirstTrainerBaseProgress = 25000;
+        public const double FirstTrainerBaseProgress = 50000;
 
         /// <summary>Each trainer after the first: base × step^(order−1). Raise for a steeper difficulty curve.</summary>
-        public const double PerTrainerDifficultyStep = 1.5;
+        public const double PerTrainerDifficultyStep = 1.2;
+
+        /// <summary>
+        /// Battle trainers: required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^(Level−1).
+        /// </summary>
+        public const double BattleProgressRequiredPerLevelExponent = 1.15;
 
         /// <summary>Battle bar speed uses: min(cap, baseline + bonus × total type levels from route training).</summary>
         public const double BattleSpeedMultiplierBaseline = 1.0;

@@ -38,6 +38,19 @@ public static class PokemonTypeContribution
             new TypeLevelContribution(secondaryTypeKey, secondaryShare),
         ];
     }
+
+    /// <summary>Same keys as <see cref="SplitTotal"/> but negated points (for reversing a prior split).</summary>
+    public static TypeLevelContribution[] Negate(TypeLevelContribution[] contributions)
+    {
+        var result = new TypeLevelContribution[contributions.Length];
+        for (var i = 0; i < contributions.Length; i++)
+        {
+            var c = contributions[i];
+            result[i] = new TypeLevelContribution(c.TypeKey, -c.Points);
+        }
+
+        return result;
+    }
 }
 
 public static class PokemonEvolutionData

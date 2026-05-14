@@ -18,6 +18,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     private readonly Action<PokemonTrainingBarViewModel> _toggleTrainingRequested;
     private readonly Func<double>? _getProgressMultiplier;
     private readonly EvolutionStage[]? _evolutionChain;
+    private readonly double _progressRequiredPerLevelExponent;
     private readonly DispatcherTimer _trainingTimer;
 
     public PokemonTrainingBarViewModel(
@@ -29,6 +30,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         Action<PokemonTrainingBarViewModel> recordLevelChanged,
         Action<TypeLevelContribution[]> recordTypeLevelContributions,
         double progressRequired,
+        double progressRequiredPerLevelExponent,
         Func<double>? getProgressMultiplier = null,
         EvolutionStage[]? evolutionChain = null)
     {
@@ -37,6 +39,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         _toggleTrainingRequested = toggleTrainingRequested;
         _getProgressMultiplier = getProgressMultiplier;
         _evolutionChain = evolutionChain is { Length: > 0 } ? evolutionChain : null;
+        _progressRequiredPerLevelExponent = progressRequiredPerLevelExponent;
         BaseProgressRequired = progressRequired;
         Progress = 0;
 
@@ -74,7 +77,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public double BaseProgressRequired { get; }
 
-    public double ProgressRequired => BaseProgressRequired * Math.Pow(GameBalance.Training.ProgressRequiredPerLevelExponent, Math.Max(0, Level - 1));
+    public double ProgressRequired => BaseProgressRequired * Math.Pow(_progressRequiredPerLevelExponent, Math.Max(0, Level - 1));
 
     public double ProgressFraction => ProgressRequired == 0 ? 0 : (double)Progress / ProgressRequired;
 
@@ -240,7 +243,29 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         }
 
         Progress = 0;
-        Level++;
+
+        if (_evolutionChain is { Length: > 0 } chain)
+        {
+            var previousStageIndex = GetActiveStageIndexZeroBased();
+            Level++;
+            var newStageIndex = GetActiveStageIndexZeroBased();
+            if (newStageIndex > previousStageIndex)
+            {
+                var oldPerLevel = GameBalance.TypeLevelUp.PointsForChainStage(chain.Length, previousStageIndex);
+                var newPerLevel = GameBalance.TypeLevelUp.PointsForChainStage(chain.Length, newStageIndex);
+                var oldStage = chain[previousStageIndex];
+                var newStage = chain[newStageIndex];
+                var remove = PokemonTypeContribution.Negate(
+                    PokemonTypeContribution.SplitTotal(oldStage.TypeKey, oldStage.SecondaryTypeKey, Level * oldPerLevel));
+                var add = PokemonTypeContribution.SplitTotal(newStage.TypeKey, newStage.SecondaryTypeKey, Level * newPerLevel);
+                _recordTypeLevelContributions([.. remove, .. add]);
+            }
+        }
+        else
+        {
+            Level++;
+        }
+
         RecordTypeLevelContributionsForCurrentStage();
     }
 

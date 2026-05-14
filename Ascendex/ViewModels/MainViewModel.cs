@@ -406,6 +406,7 @@ public class MainViewModel : ViewModelBase
             OnPokemonLevelChanged,
             RecordTypeLevelContributions,
             progressRequired,
+            GameBalance.Training.RoutePokemonProgressRequiredPerLevelExponent,
             GetPokemonTrainingSpeedFromBattleClears,
             evolutionChain);
     }
@@ -432,7 +433,17 @@ public class MainViewModel : ViewModelBase
             area.IsSelected = area == selectedArea;
         }
 
-        SelectedAreaIndex = AreaSelectors.IndexOf(selectedArea);
+        var newIndex = AreaSelectors.IndexOf(selectedArea);
+        if (_selectedAreaIndex != newIndex)
+        {
+            SelectedAreaIndex = newIndex;
+        }
+        else
+        {
+            // Same index: SetProperty would not notify; the route strip still needs to re-center on tap.
+            OnPropertyChanged(nameof(SelectedAreaIndex));
+        }
+
         CurrentAreaName = selectedArea.DisplayName;
         PokemonBars.Clear();
 
@@ -509,6 +520,7 @@ public class MainViewModel : ViewModelBase
             OnBattleLevelChanged,
             static (TypeLevelContribution[] _) => { },
             progressRequired,
+            GameBalance.Battles.BattleProgressRequiredPerLevelExponent,
             GetBattleSpeedFromTypeLevels);
         _allBattleBars.Add(bar);
         BattleBars.Add(bar);

@@ -47,6 +47,8 @@ public partial class RoutesView : UserControl
     {
         if (e.PropertyName == nameof(MainViewModel.SelectedAreaIndex))
         {
+            // Explicit area choice (tap): treat like not swiping so a same-frame SizeChanged cannot suppress centering.
+            _stripUserPannedHorizontally = false;
             RequestScrollAreaToSelection(alignToSelection: true);
         }
     }
