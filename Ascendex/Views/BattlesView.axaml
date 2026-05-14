@@ -52,7 +52,7 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:PokemonTrainingBarViewModel">
-            <Button Classes="staticClick" Command="{Binding ToggleTrainingCommand}" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+            <Button Classes="staticClick" Command="{Binding ToggleTrainingCommand}" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsVisible="{Binding IsVisible}">
               <Grid Height="68">
                 <Grid ColumnDefinitions="*,2,4.5*">
                   <Border Background="{Binding AccentBrush}">

@@ -11,13 +11,12 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 {
     private static readonly IBrush IdleBorderBrush = Brush.Parse("#5F6470");
     private static readonly IBrush ActiveBorderBrush = Brushes.White;
-    private static readonly TimeSpan TrainingTickInterval = TimeSpan.FromMilliseconds(16);
-    private const double LevelGrowthFactor = 1.2;
-    private const double ProgressPerTick = 1;
+    private static readonly TimeSpan TrainingTickInterval = TimeSpan.FromMilliseconds(GameBalance.Training.TickIntervalMilliseconds);
 
     private readonly Action<string> _recordTypeLevelUp;
     private readonly Action<PokemonTrainingBarViewModel> _recordLevelChanged;
     private readonly Action<PokemonTrainingBarViewModel> _toggleTrainingRequested;
+    private readonly Func<double>? _getProgressMultiplier;
     private readonly DispatcherTimer _trainingTimer;
 
     public PokemonTrainingBarViewModel(
@@ -28,11 +27,13 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         Action<PokemonTrainingBarViewModel> toggleTrainingRequested,
         Action<PokemonTrainingBarViewModel> recordLevelChanged,
         Action<string> recordTypeLevelUp,
-        double progressRequired)
+        double progressRequired,
+        Func<double>? getProgressMultiplier = null)
     {
         _recordTypeLevelUp = recordTypeLevelUp;
         _recordLevelChanged = recordLevelChanged;
         _toggleTrainingRequested = toggleTrainingRequested;
+        _getProgressMultiplier = getProgressMultiplier;
         Name = name;
         TypeKey = typeKey;
         AccentBrush = Brush.Parse(accentColor);
@@ -58,13 +59,16 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public double BaseProgressRequired { get; }
 
-    public double ProgressRequired => BaseProgressRequired * Math.Pow(LevelGrowthFactor, Math.Max(0, Level - 1));
+    public double ProgressRequired => BaseProgressRequired * Math.Pow(GameBalance.Training.ProgressRequiredPerLevelExponent, Math.Max(0, Level - 1));
 
     public double ProgressFraction => ProgressRequired == 0 ? 0 : (double)Progress / ProgressRequired;
 
     public string TimeRemainingText => FormatTimeRemaining();
 
-    public Thickness TrainingBorderThickness => IsTraining ? new Thickness(4) : new Thickness(1);
+    public Thickness TrainingBorderThickness =>
+        IsTraining
+            ? new Thickness(GameBalance.Training.ActiveTrainingBorderThickness)
+            : new Thickness(GameBalance.Training.IdleTrainingBorderThickness);
 
     public IBrush TrainingBorderBrush => IsTraining ? ActiveBorderBrush : IdleBorderBrush;
 
@@ -76,6 +80,10 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isTraining;
+
+    /// <summary>When false, the row is hidden (used for battle unlock order; always true for route Pokémon).</summary>
+    [ObservableProperty]
+    private bool _isVisible = true;
 
     partial void OnProgressChanged(double value)
     {
@@ -116,6 +124,9 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         IsTraining = isTraining;
     }
 
+    /// <summary>Call when an external factor changes effective training speed so <see cref="TimeRemainingText"/> refreshes without waiting for the next tick.</summary>
+    public void NotifyTimeRemainingChanged() => OnPropertyChanged(nameof(TimeRemainingText));
+
     private void OnTrainingTimerTick(object? sender, EventArgs e)
     {
         if (ProgressRequired <= 0)
@@ -123,7 +134,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             return;
         }
 
-        Progress += ProgressPerTick;
+        Progress += GameBalance.Training.ProgressPerTick * GetClampedProgressMultiplier();
 
         if (Progress < ProgressRequired)
         {
@@ -135,19 +146,33 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         _recordTypeLevelUp(TypeKey);
     }
 
+    private double GetClampedProgressMultiplier()
+    {
+        var raw = _getProgressMultiplier?.Invoke() ?? GameBalance.Training.NeutralSpeedMultiplier;
+        if (double.IsNaN(raw) || double.IsInfinity(raw))
+        {
+            return GameBalance.Training.NeutralSpeedMultiplier;
+        }
+
+        return Math.Clamp(raw, GameBalance.Training.MinExternalSpeedMultiplier, GameBalance.Training.MaxExternalSpeedMultiplier);
+    }
+
+    private double GetEffectiveProgressPerTick() => GameBalance.Training.ProgressPerTick * GetClampedProgressMultiplier();
+
     private string FormatTimeRemaining()
     {
-        if (ProgressRequired <= 0 || ProgressPerTick <= 0)
+        var effectivePerTick = GetEffectiveProgressPerTick();
+        if (ProgressRequired <= 0 || effectivePerTick <= 0)
         {
             return "0s";
         }
 
         var remainingProgress = Math.Max(0, ProgressRequired - Progress);
-        var remainingMilliseconds = remainingProgress / ProgressPerTick * TrainingTickInterval.TotalMilliseconds;
+        var remainingMilliseconds = remainingProgress / effectivePerTick * TrainingTickInterval.TotalMilliseconds;
         var remaining = TimeSpan.FromMilliseconds(remainingMilliseconds);
         var totalSeconds = Math.Max(0, (int)Math.Floor(remaining.TotalSeconds));
 
-        if (totalSeconds >= 60)
+        if (totalSeconds >= GameBalance.Training.SecondsBeforeMinuteTimeFormat)
         {
             return $"{totalSeconds / 60}:{totalSeconds % 60:D2}";
         }

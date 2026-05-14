@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.Input;
@@ -346,9 +347,9 @@ public class MainViewModel : ViewModelBase
 
     public bool IsBattlesTabSelected => _selectedMainTab == 1;
 
-    public double RoutesTabOpacity => _selectedMainTab == 0 ? 1.0 : 0.45;
+    public double RoutesTabOpacity => _selectedMainTab == 0 ? GameBalance.Ui.ActiveMainTabLabelOpacity : GameBalance.Ui.InactiveMainTabLabelOpacity;
 
-    public double BattlesTabOpacity => _selectedMainTab == 1 ? 1.0 : 0.45;
+    public double BattlesTabOpacity => _selectedMainTab == 1 ? GameBalance.Ui.ActiveMainTabLabelOpacity : GameBalance.Ui.InactiveMainTabLabelOpacity;
 
     public ObservableCollection<PokemonTrainingBarViewModel> PokemonBars { get; }
 
@@ -387,7 +388,7 @@ public class MainViewModel : ViewModelBase
     private PokemonTrainingBarViewModel CreatePokemon(
         string name,
         string typeKey,
-        double progressRequired = 30)
+        double progressRequired = GameBalance.Routes.DefaultBaseProgressRequired)
     {
         var palette = ResolveBarPalette(name, typeKey);
 
@@ -399,7 +400,8 @@ public class MainViewModel : ViewModelBase
             ToggleTraining,
             OnPokemonLevelChanged,
             RecordTypeLevelUp,
-            progressRequired);
+            progressRequired,
+            GetPokemonTrainingSpeedFromBattleClears);
     }
 
     private static PokemonBarPalette ResolveBarPalette(string name, string typeKey)
@@ -455,22 +457,41 @@ public class MainViewModel : ViewModelBase
 
     private void InitializeBattles()
     {
-        AddBattle("Brock", "rock");
-        AddBattle("Misty", "water");
-        AddBattle("Lt. Surge", "electric");
-        AddBattle("Erika", "grass");
-        AddBattle("Koga", "poison");
-        AddBattle("Sabrina", "psychic");
-        AddBattle("Blaine", "fire");
-        AddBattle("Giovanni", "ground");
-        AddBattle("Lorelei", "ice");
-        AddBattle("Bruno", "fighting");
-        AddBattle("Agatha", "ghost");
-        AddBattle("Lance", "dragon");
-        AddBattle("Blue", "normal");
+        var lineup = new (string Name, string TypeKey)[]
+        {
+            ("Brock", "rock"),
+            ("Misty", "water"),
+            ("Lt. Surge", "electric"),
+            ("Erika", "grass"),
+            ("Koga", "poison"),
+            ("Sabrina", "psychic"),
+            ("Blaine", "fire"),
+            ("Giovanni", "ground"),
+            ("Lorelei", "ice"),
+            ("Bruno", "fighting"),
+            ("Agatha", "ghost"),
+            ("Lance", "dragon"),
+            ("Blue", "normal"),
+        };
+
+        for (var i = 0; i < lineup.Length; i++)
+        {
+            var (name, typeKey) = lineup[i];
+            var baseRequired = ComputeBattleBaseProgressRequired(i + 1);
+            AddBattle(name, typeKey, baseRequired);
+        }
+
+        UpdateBattleVisibility();
     }
 
-    private void AddBattle(string name, string typeKey, double progressRequired = 30)
+    /// <summary>Later trainers need more progress per cycle (each bar still scales further with <see cref="PokemonTrainingBarViewModel.ProgressRequired"/> by level).</summary>
+    private static double ComputeBattleBaseProgressRequired(int battleOrderOneBased)
+    {
+        return GameBalance.Battles.FirstTrainerBaseProgress
+            * Math.Pow(GameBalance.Battles.PerTrainerDifficultyStep, battleOrderOneBased - 1);
+    }
+
+    private void AddBattle(string name, string typeKey, double progressRequired)
     {
         var palette = ResolveBarPalette(name, typeKey);
         var bar = new PokemonTrainingBarViewModel(
@@ -479,9 +500,10 @@ public class MainViewModel : ViewModelBase
             palette.AccentColor,
             palette.ForegroundColor,
             ToggleBattleTraining,
+            OnBattleLevelChanged,
             _ => { },
-            _ => { },
-            progressRequired);
+            progressRequired,
+            GetBattleSpeedFromPartyLevels);
         _allBattleBars.Add(bar);
         BattleBars.Add(bar);
     }
@@ -505,6 +527,31 @@ public class MainViewModel : ViewModelBase
         selectedBar.SetTraining(true);
     }
 
+    /// <summary>Sum of every Pokémon's current level across all routes.</summary>
+    private int GetTotalPartyLevels() => _allPokemonBars.Sum(p => p.Level);
+
+    /// <summary>More total party levels → faster progress on battle bars.</summary>
+    private double GetBattleSpeedFromPartyLevels()
+    {
+        var sum = GetTotalPartyLevels();
+        var multiplier = GameBalance.Battles.BattleSpeedMultiplierBaseline + sum * GameBalance.Battles.BattleSpeedBonusPerTotalPartyLevel;
+        return Math.Min(multiplier, GameBalance.Battles.BattleSpeedMultiplierCap);
+    }
+
+    /// <summary>Battle clears weighted per trainer → faster progress when training Pokémon on routes.</summary>
+    private double GetPokemonTrainingSpeedFromBattleClears()
+    {
+        var bonus = 0.0;
+        for (var i = 0; i < _allBattleBars.Count; i++)
+        {
+            var clears = Math.Max(0, _allBattleBars[i].Level - 1);
+            bonus += clears * GameBalance.Battles.RouteTrainingBonusWeightForTrainer(i);
+        }
+
+        var multiplier = GameBalance.Battles.RouteTrainingSpeedMultiplierBaseline + bonus;
+        return Math.Min(multiplier, GameBalance.Battles.RouteTrainingSpeedMultiplierCap);
+    }
+
     private void RecordTypeLevelUp(string typeKey)
     {
         if (_typeCountersByKey.TryGetValue(typeKey, out var counter))
@@ -516,6 +563,35 @@ public class MainViewModel : ViewModelBase
     private void OnPokemonLevelChanged(PokemonTrainingBarViewModel pokemonBar)
     {
         UpdateAreaVisibility();
+        foreach (var battleBar in _allBattleBars)
+        {
+            battleBar.NotifyTimeRemainingChanged();
+        }
+    }
+
+    private void OnBattleLevelChanged(PokemonTrainingBarViewModel battleBar)
+    {
+        UpdateBattleVisibility();
+        foreach (var pokemonBar in _allPokemonBars)
+        {
+            pokemonBar.NotifyTimeRemainingChanged();
+        }
+    }
+
+    /// <summary>Each trainer row appears only after the previous trainer reaches <see cref="GameBalance.Battles.MinTrainerLevelToRevealNextBattle"/> (one full clear from level 1). Brock is always shown.</summary>
+    private void UpdateBattleVisibility()
+    {
+        for (var index = 0; index < _allBattleBars.Count; index++)
+        {
+            if (index == 0)
+            {
+                _allBattleBars[index].IsVisible = true;
+                continue;
+            }
+
+            var previous = _allBattleBars[index - 1];
+            _allBattleBars[index].IsVisible = previous.Level >= GameBalance.Battles.MinTrainerLevelToRevealNextBattle;
+        }
     }
 
     private void UpdateAreaVisibility()
@@ -531,7 +607,7 @@ public class MainViewModel : ViewModelBase
             var previousArea = AreaSelectors[index - 1];
             AreaSelectors[index].IsVisible =
                 previousArea.IsVisible &&
-                previousArea.PokemonBars.Any(pokemonBar => pokemonBar.Level >= 5);
+                previousArea.PokemonBars.Any(pokemonBar => pokemonBar.Level >= GameBalance.Routes.MinPokemonLevelToUnlockNextArea);
         }
     }
 
