@@ -129,6 +129,7 @@ public class MainViewModel : ViewModelBase
     {
         SelectRoutesTabCommand = new RelayCommand(() => SelectedMainTab = 0);
         SelectBattlesTabCommand = new RelayCommand(() => SelectedMainTab = 1);
+        SelectCollectionsTabCommand = new RelayCommand(() => SelectedMainTab = 2);
 
         TypeCounters =
             new ObservableCollection<TypeCounterViewModel>
@@ -327,11 +328,14 @@ public class MainViewModel : ViewModelBase
         UpdateAreaVisibility();
         SelectArea(AreaSelectors[0]);
         InitializeBattles();
+        InitializePokedex();
     }
 
     public IRelayCommand SelectRoutesTabCommand { get; }
 
     public IRelayCommand SelectBattlesTabCommand { get; }
+
+    public IRelayCommand SelectCollectionsTabCommand { get; }
 
     public int SelectedMainTab
     {
@@ -342,8 +346,10 @@ public class MainViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(IsRoutesTabSelected));
                 OnPropertyChanged(nameof(IsBattlesTabSelected));
+                OnPropertyChanged(nameof(IsCollectionsTabSelected));
                 OnPropertyChanged(nameof(RoutesTabBackground));
                 OnPropertyChanged(nameof(BattlesTabBackground));
+                OnPropertyChanged(nameof(CollectionsTabBackground));
             }
         }
     }
@@ -352,9 +358,13 @@ public class MainViewModel : ViewModelBase
 
     public bool IsBattlesTabSelected => _selectedMainTab == 1;
 
+    public bool IsCollectionsTabSelected => _selectedMainTab == 2;
+
     public IBrush RoutesTabBackground => _selectedMainTab == 0 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
     public IBrush BattlesTabBackground => _selectedMainTab == 1 ? MainTabSelectedBrush : MainTabUnselectedBrush;
+
+    public IBrush CollectionsTabBackground => _selectedMainTab == 2 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
     public bool HasBattlesTabProgressIndicator
     {
@@ -381,6 +391,8 @@ public class MainViewModel : ViewModelBase
     public ObservableCollection<AreaSelectionViewModel> AreaSelectors { get; }
 
     public ObservableCollection<TypeCounterViewModel> TypeCounters { get; }
+
+    public ObservableCollection<PokedexCellViewModel> PokedexCells { get; } = new();
 
     public string CurrentAreaName
     {
@@ -686,6 +698,7 @@ public class MainViewModel : ViewModelBase
 
     private void OnPokemonLevelChanged(PokemonTrainingBarViewModel pokemonBar)
     {
+        RefreshPokedexCells();
         UpdateAreaVisibility();
         foreach (var battleBar in _allBattleBars)
         {
@@ -732,6 +745,55 @@ public class MainViewModel : ViewModelBase
             AreaSelectors[index].IsVisible =
                 previousArea.IsVisible &&
                 previousArea.PokemonBars.Any(pokemonBar => pokemonBar.Level >= GameBalance.Routes.MinPokemonLevelToUnlockNextArea);
+        }
+    }
+
+    private void InitializePokedex()
+    {
+        PokedexCells.Clear();
+        for (var i = 0; i < PokedexKantoOneFifty.CellCount; i++)
+        {
+            PokedexCells.Add(new PokedexCellViewModel());
+        }
+
+        RefreshPokedexCells();
+    }
+
+    /// <summary>Kanto #001–#150: black until a route bar reaches level 1+, then each reached species uses its primary type accent.</summary>
+    private void RefreshPokedexCells()
+    {
+        foreach (var cell in PokedexCells)
+        {
+            cell.FillBrush = PokedexCellViewModel.UncaughtFill;
+        }
+
+        foreach (var bar in _allPokemonBars)
+        {
+            if (bar.Level < 1)
+            {
+                continue;
+            }
+
+            var chain = PokemonEvolutionData.TryGetChain(bar.SpeciesLineRoot);
+            if (chain is { Length: > 0 })
+            {
+                foreach (var stage in chain)
+                {
+                    if (stage.MinLevel > bar.Level)
+                    {
+                        continue;
+                    }
+
+                    if (PokedexKantoOneFifty.CellIndexBySpeciesName.TryGetValue(stage.Name, out var idx))
+                    {
+                        PokedexCells[idx].FillBrush = PokemonTypeBrushes.AccentBrushForTypeKey(stage.TypeKey);
+                    }
+                }
+            }
+            else if (PokedexKantoOneFifty.CellIndexBySpeciesName.TryGetValue(bar.Name, out var idx))
+            {
+                PokedexCells[idx].FillBrush = PokemonTypeBrushes.AccentBrushForTypeKey(bar.TypeKey);
+            }
         }
     }
 

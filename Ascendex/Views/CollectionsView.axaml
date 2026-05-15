@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Ascendex.Controls"
+             xmlns:vm="clr-namespace:Ascendex.ViewModels"
+             mc:Ignorable="d"
+             d:DesignWidth="430"
+             d:DesignHeight="860"
+             x:Class="Ascendex.Views.CollectionsView"
+             x:DataType="vm:MainViewModel">
+  <Design.DataContext>
+    <vm:MainViewModel />
+  </Design.DataContext>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="16,18" Spacing="14" HorizontalAlignment="Center">
+      <controls:OutlinedTextBlock Text="Pokédex" Foreground="White" FontSize="28" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1.5" HorizontalAlignment="Center"/>
+      <Border x:Name="PokedexGridHost" HorizontalAlignment="Center" ClipToBounds="True">
+        <ItemsControl ItemsSource="{Binding PokedexCells}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <UniformGrid Columns="10" Rows="15"/>
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:PokedexCellViewModel">
+              <Border BorderBrush="White" BorderThickness="1" Background="{Binding FillBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

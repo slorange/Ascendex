@@ -42,6 +42,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         _progressRequiredPerLevelExponent = progressRequiredPerLevelExponent;
         BaseProgressRequired = progressRequired;
         Progress = 0;
+        SpeciesLineRoot = name;
 
         if (_evolutionChain != null)
         {
@@ -81,6 +82,9 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     [ObservableProperty]
     private IBrush _accentForegroundBrush = Brushes.Transparent;
+
+    /// <summary>Route species key for evolution lookup (initial species name); unchanged when the bar evolves.</summary>
+    public string SpeciesLineRoot { get; }
 
     public double BaseProgressRequired { get; }
 
