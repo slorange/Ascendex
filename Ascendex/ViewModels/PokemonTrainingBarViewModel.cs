@@ -50,6 +50,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             ApplyEvolutionStageForCurrentLevel();
             OnPropertyChanged(nameof(ProgressRequired));
             OnPropertyChanged(nameof(ProgressFraction));
+            OnPropertyChanged(nameof(VisualProgressFraction));
             OnPropertyChanged(nameof(TimeRemainingText));
             _recordLevelChanged(this);
         }
@@ -87,6 +88,10 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public double ProgressFraction => ProgressRequired == 0 ? 0 : (double)Progress / ProgressRequired;
 
+    /// <summary>Bar fill for UI: full while training if pace is ultra-fast; otherwise matches <see cref="ProgressFraction"/>.</summary>
+    public double VisualProgressFraction =>
+        IsUltraFastTrainingPace() && IsTraining ? 1.0 : ProgressFraction;
+
     public string TimeRemainingText => FormatTimeRemaining();
 
     public Thickness TrainingBorderThickness =>
@@ -112,6 +117,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     partial void OnProgressChanged(double value)
     {
         OnPropertyChanged(nameof(ProgressFraction));
+        OnPropertyChanged(nameof(VisualProgressFraction));
         OnPropertyChanged(nameof(TimeRemainingText));
     }
 
@@ -120,6 +126,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         ApplyEvolutionStageForCurrentLevel();
         OnPropertyChanged(nameof(ProgressRequired));
         OnPropertyChanged(nameof(ProgressFraction));
+        OnPropertyChanged(nameof(VisualProgressFraction));
         OnPropertyChanged(nameof(TimeRemainingText));
         _recordLevelChanged(this);
     }
@@ -210,6 +217,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(TrainingBorderThickness));
         OnPropertyChanged(nameof(TrainingBorderBrush));
+        OnPropertyChanged(nameof(VisualProgressFraction));
 
         if (value)
         {
@@ -231,8 +239,12 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         IsTraining = isTraining;
     }
 
-    /// <summary>Call when an external factor changes effective training speed so <see cref="TimeRemainingText"/> refreshes without waiting for the next tick.</summary>
-    public void NotifyTimeRemainingChanged() => OnPropertyChanged(nameof(TimeRemainingText));
+    /// <summary>Call when an external factor changes effective training speed so <see cref="TimeRemainingText"/> and <see cref="VisualProgressFraction"/> refresh without waiting for the next tick.</summary>
+    public void NotifyTimeRemainingChanged()
+    {
+        OnPropertyChanged(nameof(TimeRemainingText));
+        OnPropertyChanged(nameof(VisualProgressFraction));
+    }
 
     private void OnTrainingTimerTick(object? sender, EventArgs e)
     {
@@ -241,9 +253,10 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             return;
         }
 
-        Progress += GameBalance.Training.ProgressPerTick * GetClampedProgressMultiplier();
+        var increase = GameBalance.Training.ProgressPerTick * GetClampedProgressMultiplier();
+        Progress += increase;
 
-        if (Progress < ProgressRequired)
+		if (Progress < ProgressRequired)
         {
             return;
         }
@@ -288,10 +301,28 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     private double GetEffectiveProgressPerTick() => GameBalance.Training.ProgressPerTick * GetClampedProgressMultiplier();
 
+    /// <summary>True when a full bar at the current per-tick rate would complete in under <see cref="MagicNumbersUI.TimeRemaining.UltraFastFullBarMaxDurationSeconds"/> (presentation-only fast path).</summary>
+    private bool IsUltraFastTrainingPace()
+    {
+        var effectivePerTick = GetEffectiveProgressPerTick();
+        if (ProgressRequired <= 0 || effectivePerTick <= 0)
+        {
+            return false;
+        }
+
+        var fullBarMs = ProgressRequired / effectivePerTick * TrainingTickInterval.TotalMilliseconds;
+        return fullBarMs < MagicNumbersUI.TimeRemaining.UltraFastFullBarMaxDurationSeconds * 1000.0;
+    }
+
     private string FormatTimeRemaining()
     {
         var effectivePerTick = GetEffectiveProgressPerTick();
         if (ProgressRequired <= 0 || effectivePerTick <= 0)
+        {
+            return "0s";
+        }
+
+        if (IsUltraFastTrainingPace())
         {
             return "0s";
         }

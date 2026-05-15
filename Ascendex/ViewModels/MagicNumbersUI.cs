@@ -27,5 +27,8 @@ public static class MagicNumbersUI
     {
         /// <summary>Time-remaining text uses m:ss at or above this many seconds; below shows "Ns".</summary>
         public const int SecondsBeforeMinuteTimeFormat = 60;
+
+        /// <summary>If a full bar at the current tick rate would finish in less than this, the bar renders full while training and the timer shows zero (actual progress and level-ups unchanged).</summary>
+        public const double UltraFastFullBarMaxDurationSeconds = 0.1;
     }
 }

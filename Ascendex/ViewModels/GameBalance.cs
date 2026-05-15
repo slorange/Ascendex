@@ -22,10 +22,10 @@ public static class GameBalance
 		/// <summary>
 		/// Route Pokémon: required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^Level (Level starts at 0).
 		/// </summary>
-		public const double RoutePokemonProgressRequiredPerLevelExponent = 1.08;
+		public const double RoutePokemonProgressRequiredPerLevelExponent = 1.1;
 
         /// <summary>Floor for external speed multipliers so bad values cannot freeze the bar.</summary>
-        public const double MinExternalSpeedMultiplier = 0.05;
+        public const double MinExternalSpeedMultiplier = 0.01;
 
         /// <summary>Ceiling for external speed multipliers so absurd values do not skip levels in one tick.</summary>
         public const double MaxExternalSpeedMultiplier = int.MaxValue;
@@ -68,12 +68,12 @@ public static class GameBalance
         public const double FirstTrainerBaseProgress = 50000;
 
         /// <summary>Each trainer after the first: base × step^(order−1). Raise for a steeper difficulty curve.</summary>
-        public const double PerTrainerDifficultyStep = 1.3;
+        public const double PerTrainerDifficultyStep = 1.5;
 
         /// <summary>
         /// Battle trainers: required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^Level (Level starts at 0).
         /// </summary>
-        public const double BattleProgressRequiredPerLevelExponent = 1.07;
+        public const double BattleProgressRequiredPerLevelExponent = 1.13;
 
         /// <summary>Battle bar speed uses: min(cap, baseline + bonus × total type levels from route training).</summary>
         public const double BattleSpeedMultiplierBaseline = 1.0;

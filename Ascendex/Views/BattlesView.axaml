@@ -65,7 +65,7 @@
                     <Border Background="#4B505A"/>
                     <Border Background="{Binding AccentBrush}" RenderTransformOrigin="0,0.5">
                       <Border.RenderTransform>
-                        <ScaleTransform ScaleX="{Binding ProgressFraction}" />
+                        <ScaleTransform ScaleX="{Binding VisualProgressFraction}" />
                       </Border.RenderTransform>
                     </Border>
                     <controls:OutlinedTextBlock Margin="14,0" Text="{Binding Name}" VerticalAlignment="Center" Foreground="White" FontSize="22" FontWeight="Medium" OutlineBrush="Black" OutlineThickness="1.5"/>
