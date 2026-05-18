@@ -42,7 +42,10 @@
         <Grid ColumnDefinitions="*,*,*">
           <Button Grid.Column="0" Classes="mainTab" Command="{Binding SelectRoutesTabCommand}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
             <Border Background="{Binding RoutesTabBackground}" Padding="8,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-              <TextBlock Text="Routes" Foreground="White" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
+                <TextBlock Text="Routes" Foreground="White" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Image Source="avares://Ascendex/Assets/pokeball.png" IsVisible="{Binding ShowRoutesTabPokeballIcon}" Width="18" Height="18" VerticalAlignment="Center" Stretch="Uniform"/>
+              </StackPanel>
             </Border>
           </Button>
           <Button Grid.Column="1" Classes="mainTab" Command="{Binding SelectBattlesTabCommand}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">

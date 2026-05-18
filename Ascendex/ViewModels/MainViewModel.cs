@@ -117,6 +117,8 @@ public class MainViewModel : ViewModelBase
     private readonly List<PokemonTrainingBarViewModel> _allPokemonBars;
     private readonly List<PokemonTrainingBarViewModel> _allBattleBars;
     private readonly Dictionary<string, TypeCounterViewModel> _typeCountersByKey;
+    private Dictionary<string, AreaSelectionViewModel> _areasByDisplayName = null!;
+    private Dictionary<string, PokemonTrainingBarViewModel> _trainersByName = null!;
     private string _currentAreaName = string.Empty;
     private int _selectedAreaIndex;
     private int _selectedMainTab;
@@ -231,6 +233,14 @@ public class MainViewModel : ViewModelBase
             CreatePokemon("Goldeen", "water"));
 
         AddArea(
+            "RX",
+            "Route X",
+            CreatePokemon("Diglett", "ground"),
+            CreatePokemon("Farfetch'd", "flying"),
+            CreatePokemon("Drowzee", "psychic"),
+            CreatePokemon("Mr. Mime", "psychic"));
+
+        AddArea(
             "RT",
             "Rock Tunnel",
             CreatePokemon("Machop", "fighting"),
@@ -252,33 +262,10 @@ public class MainViewModel : ViewModelBase
             CreatePokemon("Dratini", "dragon"));
 
         AddArea(
-            "RX",
-            "Route X",
-            CreatePokemon("Diglett", "ground"),
-            CreatePokemon("Farfetch'd", "flying"),
-            CreatePokemon("Drowzee", "psychic"),
-            CreatePokemon("Mr. Mime", "psychic"));
-
-        AddArea(
-            "SC",
-            "Saffron City",
-            CreatePokemon("Hitmonlee", "fighting"),
-            CreatePokemon("Hitmonchan", "fighting"),
-            CreatePokemon("Lapras", "ice"));
-
-        AddArea(
             "CR",
             "Cycling Road",
             CreatePokemon("Ponyta", "fire"),
             CreatePokemon("Doduo", "flying"));
-
-        AddArea(
-            "SR",
-            "Super Rod",
-            CreatePokemon("Tentacool", "water"),
-            CreatePokemon("Slowpoke", "water"),
-            CreatePokemon("Horsea", "water"),
-            CreatePokemon("Staryu", "water"));
 
         AddArea(
             "SZ1",
@@ -296,6 +283,21 @@ public class MainViewModel : ViewModelBase
             CreatePokemon("Kangaskhan", "normal"));
 
         AddArea(
+            "SR",
+            "Super Rod",
+            CreatePokemon("Tentacool", "water"),
+            CreatePokemon("Slowpoke", "water"),
+            CreatePokemon("Horsea", "water"),
+            CreatePokemon("Staryu", "water"));
+
+        AddArea(
+            "SC",
+            "Saffron City",
+            CreatePokemon("Hitmonlee", "fighting"),
+            CreatePokemon("Hitmonchan", "fighting"),
+            CreatePokemon("Lapras", "ice"));
+
+        AddArea(
             "PP",
             "Power Plant",
             CreatePokemon("Magnemite", "electric"),
@@ -311,13 +313,6 @@ public class MainViewModel : ViewModelBase
             CreatePokemon("Jynx", "ice"));
 
         AddArea(
-            "LAB",
-            "Pokemon Lab Cinnabar",
-            CreatePokemon("Omanyte", "rock"),
-            CreatePokemon("Kabuto", "rock"),
-            CreatePokemon("Aerodactyl", "rock"));
-
-        AddArea(
             "PM",
             "Pokemon Mansion",
             CreatePokemon("Koffing", "poison"),
@@ -325,9 +320,17 @@ public class MainViewModel : ViewModelBase
             CreatePokemon("Ditto", "normal"),
             CreatePokemon("Grimer", "poison"));
 
-        UpdateAreaVisibility();
-        SelectArea(AreaSelectors[0]);
+        AddArea(
+            "LAB",
+            "Pokemon Lab Cinnabar",
+            CreatePokemon("Omanyte", "rock"),
+            CreatePokemon("Kabuto", "rock"),
+            CreatePokemon("Aerodactyl", "rock"));
+
         InitializeBattles();
+        BuildProgressionLookups();
+        UpdateProgressionVisibility();
+        SelectArea(AreaSelectors[0]);
         InitializePokedex();
     }
 
@@ -365,6 +368,8 @@ public class MainViewModel : ViewModelBase
     public IBrush BattlesTabBackground => _selectedMainTab == 1 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
     public IBrush CollectionsTabBackground => _selectedMainTab == 2 ? MainTabSelectedBrush : MainTabUnselectedBrush;
+
+    public bool ShowRoutesTabPokeballIcon => !_allPokemonBars.Any(b => b.IsCatching);
 
     public bool HasBattlesTabProgressIndicator
     {
@@ -438,9 +443,15 @@ public class MainViewModel : ViewModelBase
             RecordTypeLevelContributions,
             progressRequired,
             GameBalance.Training.RoutePokemonProgressRequiredPerLevelExponent,
-            GetPokemonTrainingSpeedFromBattleClears,
-            evolutionChain);
+            getTrainingProgressMultiplier: GetPokemonTrainingSpeedFromBattleClears,
+            evolutionChain: evolutionChain,
+            allowsCatching: true,
+            qualifiesForFirstCatchSpeedBonus: QualifiesForFirstCatchSpeedBonus,
+            getCatchProgressMultiplier: GetPokemonCatchSpeedFromBattleClears);
     }
+
+    private bool QualifiesForFirstCatchSpeedBonus() =>
+        !_allPokemonBars.Any(b => b.Level >= GameBalance.Routes.MinPokemonLevelToPassRoute);
 
     private static PokemonBarPalette ResolveBarPalette(string name, string typeKey)
     {
@@ -486,6 +497,40 @@ public class MainViewModel : ViewModelBase
 
     private void ToggleTraining(PokemonTrainingBarViewModel selectedBar)
     {
+        if (selectedBar.CanCatch)
+        {
+            ToggleCatching(selectedBar);
+            return;
+        }
+
+        ToggleRouteTraining(selectedBar);
+    }
+
+    private void ToggleCatching(PokemonTrainingBarViewModel selectedBar)
+    {
+        if (selectedBar.IsCatching)
+        {
+            selectedBar.SetCatching(false);
+            RefreshRoutesTabCatchIndicator();
+            return;
+        }
+
+        foreach (var bar in _allPokemonBars)
+        {
+            if (bar != selectedBar && bar.IsCatching)
+            {
+                bar.SetCatching(false);
+            }
+        }
+
+        selectedBar.SetCatching(true);
+        RefreshRoutesTabCatchIndicator();
+    }
+
+    private void RefreshRoutesTabCatchIndicator() => OnPropertyChanged(nameof(ShowRoutesTabPokeballIcon));
+
+    private void ToggleRouteTraining(PokemonTrainingBarViewModel selectedBar)
+    {
         if (selectedBar.IsTraining)
         {
             selectedBar.SetTraining(false);
@@ -529,7 +574,12 @@ public class MainViewModel : ViewModelBase
             AddBattle(name, typeKey, baseRequired);
         }
 
-        UpdateBattleVisibility();
+    }
+
+    private void BuildProgressionLookups()
+    {
+        _areasByDisplayName = AreaSelectors.ToDictionary(a => a.DisplayName);
+        _trainersByName = _allBattleBars.ToDictionary(b => b.Name);
     }
 
     /// <summary>Later trainers need more progress per cycle (each bar still scales further with <see cref="PokemonTrainingBarViewModel.ProgressRequired"/> by level).</summary>
@@ -552,7 +602,7 @@ public class MainViewModel : ViewModelBase
             static (TypeLevelContribution[] _) => { },
             progressRequired,
             GameBalance.Battles.BattleProgressRequiredPerLevelExponent,
-            GetBattleSpeedFromTypeLevels);
+            getTrainingProgressMultiplier: GetBattleSpeedFromTypeLevels);
         _allBattleBars.Add(bar);
         BattleBars.Add(bar);
     }
@@ -632,16 +682,40 @@ public class MainViewModel : ViewModelBase
         return Math.Min(multiplier, GameBalance.Battles.BattleSpeedMultiplierCap);
     }
 
-    /// <summary>Weight from <see cref="GameBalance.Battles.RouteTrainingBonusPerClearByTrainerIndex"/>; out-of-range indices use the last entry.</summary>
-    private static double RouteTrainingBonusWeightForTrainer(int trainerIndexZeroBased)
+    /// <summary>Battle clears weighted per trainer → faster progress when leveling Pokémon on routes.</summary>
+    private double GetPokemonTrainingSpeedFromBattleClears() => RouteGymTrainingSpeedMultiplier;
+
+    /// <summary>Gym bonus on route catch speed = baseline + (training gym bonus above baseline) × fraction.</summary>
+    private double GetPokemonCatchSpeedFromBattleClears()
     {
-        var weights = GameBalance.Battles.RouteTrainingBonusPerClearByTrainerIndex;
-        if (weights.Length == 0)
+        var training = RouteGymTrainingSpeedMultiplier;
+        var baseline = GameBalance.Battles.RouteTrainingSpeedMultiplierBaseline;
+        var gymBonusAboveBaseline = Math.Max(0, training - baseline);
+        return baseline + gymBonusAboveBaseline * GameBalance.Battles.RouteCatchFractionOfTrainingGymBonus;
+    }
+
+    private double RouteGymTrainingSpeedMultiplier =>
+        SpeedMultiplierFromBattleClears(
+            GameBalance.Battles.RouteTrainingBonusPerClearByTrainerIndex,
+            GameBalance.Battles.RouteTrainingSpeedMultiplierBaseline,
+            GameBalance.Battles.RouteTrainingSpeedMultiplierCap);
+
+    private double SpeedMultiplierFromBattleClears(double[] weightsPerTrainer, double baseline, double cap)
+    {
+        var bonus = 0.0;
+        for (var i = 0; i < _allBattleBars.Count; i++)
         {
-            return 0;
+            var clears = Math.Max(0, _allBattleBars[i].Level);
+            bonus += clears * BonusWeightForTrainer(weightsPerTrainer, i);
         }
 
-        if (trainerIndexZeroBased < 0)
+        return Math.Min(baseline + bonus, cap);
+    }
+
+    /// <summary>Out-of-range indices use the last entry.</summary>
+    private static double BonusWeightForTrainer(double[] weights, int trainerIndexZeroBased)
+    {
+        if (weights.Length == 0 || trainerIndexZeroBased < 0)
         {
             return 0;
         }
@@ -652,20 +726,6 @@ public class MainViewModel : ViewModelBase
         }
 
         return weights[trainerIndexZeroBased];
-    }
-
-    /// <summary>Battle clears weighted per trainer → faster progress when training Pokémon on routes.</summary>
-    private double GetPokemonTrainingSpeedFromBattleClears()
-    {
-        var bonus = 0.0;
-        for (var i = 0; i < _allBattleBars.Count; i++)
-        {
-            var clears = Math.Max(0, _allBattleBars[i].Level);
-            bonus += clears * RouteTrainingBonusWeightForTrainer(i);
-        }
-
-        var multiplier = GameBalance.Battles.RouteTrainingSpeedMultiplierBaseline + bonus;
-        return Math.Min(multiplier, GameBalance.Battles.RouteTrainingSpeedMultiplierCap);
     }
 
     private void RecordTypeLevelContributions(TypeLevelContribution[] contributions)
@@ -698,8 +758,14 @@ public class MainViewModel : ViewModelBase
 
     private void OnPokemonLevelChanged(PokemonTrainingBarViewModel pokemonBar)
     {
+        RefreshRoutesTabCatchIndicator();
         RefreshPokedexCells();
-        UpdateAreaVisibility();
+        UpdateProgressionVisibility();
+        foreach (var bar in _allPokemonBars)
+        {
+            bar.NotifyTimeRemainingChanged();
+        }
+
         foreach (var battleBar in _allBattleBars)
         {
             battleBar.NotifyTimeRemainingChanged();
@@ -708,44 +774,56 @@ public class MainViewModel : ViewModelBase
 
     private void OnBattleLevelChanged(PokemonTrainingBarViewModel battleBar)
     {
-        UpdateBattleVisibility();
+        UpdateProgressionVisibility();
         foreach (var pokemonBar in _allPokemonBars)
         {
             pokemonBar.NotifyTimeRemainingChanged();
         }
     }
 
-    /// <summary>Each trainer row appears only after the previous trainer reaches <see cref="GameBalance.Battles.MinTrainerLevelToRevealNextBattle"/> (one full clear from starting level 0). Brock is always shown.</summary>
-    private void UpdateBattleVisibility()
-    {
-        for (var index = 0; index < _allBattleBars.Count; index++)
-        {
-            if (index == 0)
-            {
-                _allBattleBars[index].IsVisible = true;
-                continue;
-            }
+    private bool ProgressionLookupsReady => _areasByDisplayName is not null && _trainersByName is not null;
 
-            var previous = _allBattleBars[index - 1];
-            _allBattleBars[index].IsVisible = previous.Level >= GameBalance.Battles.MinTrainerLevelToRevealNextBattle;
+    private void UpdateProgressionVisibility()
+    {
+        if (!ProgressionLookupsReady)
+        {
+            return;
+        }
+
+        for (var i = 0; i < GameProgression.Order.Length; i++)
+        {
+            var unlocked = i == 0 || IsProgressionStepComplete(GameProgression.Order[i - 1]);
+            var step = GameProgression.Order[i];
+
+            if (step.Kind == ProgressionEntryKind.Route)
+            {
+                if (_areasByDisplayName.TryGetValue(step.Key, out var area))
+                {
+                    area.IsVisible = unlocked;
+                }
+            }
+            else if (_trainersByName.TryGetValue(step.Key, out var trainer))
+            {
+                trainer.IsVisible = unlocked;
+            }
         }
     }
 
-    private void UpdateAreaVisibility()
+    private bool IsProgressionStepComplete(ProgressionEntry step)
     {
-        for (var index = 0; index < AreaSelectors.Count; index++)
+        if (!ProgressionLookupsReady)
         {
-            if (index == 0)
-            {
-                AreaSelectors[index].IsVisible = true;
-                continue;
-            }
-
-            var previousArea = AreaSelectors[index - 1];
-            AreaSelectors[index].IsVisible =
-                previousArea.IsVisible &&
-                previousArea.PokemonBars.Any(pokemonBar => pokemonBar.Level >= GameBalance.Routes.MinPokemonLevelToUnlockNextArea);
+            return false;
         }
+
+        return step.Kind switch
+        {
+            ProgressionEntryKind.Route => _areasByDisplayName.TryGetValue(step.Key, out var area)
+                && area.PokemonBars.Any(p => p.Level >= GameBalance.Routes.MinPokemonLevelToPassRoute),
+            ProgressionEntryKind.Trainer => _trainersByName.TryGetValue(step.Key, out var trainer)
+                && trainer.Level >= GameBalance.Battles.MinTrainerLevelToRevealNextBattle,
+            _ => false
+        };
     }
 
     private void InitializePokedex()

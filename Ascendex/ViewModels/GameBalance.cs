@@ -57,8 +57,17 @@ public static class GameBalance
     /// <summary>Route areas and wild Pokémon bar pacing.</summary>
     public static class Routes
     {
-        /// <summary>Reveal the next route when any single Pokémon in the previous area reaches at least this bar level (0-based).</summary>
-        public const int MinPokemonLevelToUnlockNextArea = 5;
+        /// <summary>Pass a route when any Pokémon in that area reaches at least this level (1 = caught once).</summary>
+        public const int MinPokemonLevelToPassRoute = 1;
+
+        /// <summary>
+        /// Catch progress per tick = <see cref="Training.ProgressPerTick"/> × this × external speed multipliers.
+        /// Lower values make the first bar (level 0 → 1) feel slower than training.
+        /// </summary>
+        public const double CatchSpeedMultiplier = 0.05;
+
+        /// <summary>Extra catch speed while no route Pokémon has been caught yet (multiplies <see cref="CatchSpeedMultiplier"/>).</summary>
+        public const double FirstCatchSpeedMultiplier = 100.0;
     }
 
     /// <summary>Gym / Elite Four battle list pacing and cross-mode bonuses.</summary>
@@ -88,7 +97,7 @@ public static class GameBalance
         public const double RouteTrainingSpeedMultiplierBaseline = 1.0;
 
         /// <summary>
-        /// Route training speed bonus per clear for each battle row, same order as the battles lineup (Brock, Misty, … Blue).
+        /// Route training speed bonus per clear for each battle row, same order as <see cref="GameProgression"/> trainers.
         /// Each trainer's completed cycles (bar level, starting from 0) add this weight to the bonus sum. Extra rows beyond this array use the last entry.
         /// </summary>
         public static readonly double[] RouteTrainingBonusPerClearByTrainerIndex =
@@ -99,6 +108,13 @@ public static class GameBalance
 
         /// <summary>Cap on the battle-clear route training multiplier.</summary>
         public const double RouteTrainingSpeedMultiplierCap = int.MaxValue;
+
+        /// <summary>
+        /// Route catch speed from gym clears = <see cref="RouteTrainingSpeedMultiplierBaseline"/>
+        /// + (<see cref="RouteTrainingBonusPerClearByTrainerIndex"/> total − baseline) × this.
+        /// 0 = gyms do not speed up catching; 1 = same gym bonus as training.
+        /// </summary>
+        public const double RouteCatchFractionOfTrainingGymBonus = 0.25;
 
         /// <summary>Unlock the next trainer row when the previous trainer’s level is at least this (1 = one full clear from starting level 0).</summary>
         public const int MinTrainerLevelToRevealNextBattle = 1;

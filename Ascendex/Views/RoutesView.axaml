@@ -55,7 +55,10 @@
             <Grid Height="68">
               <Grid ColumnDefinitions="*,2,4.5*">
                 <Border Background="{Binding AccentBrush}">
-                  <controls:OutlinedTextBlock Text="{Binding Level}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28" FontWeight="SemiBold" Foreground="White" OutlineBrush="Black" OutlineThickness="1.5"/>
+                  <Panel>
+                    <controls:OutlinedTextBlock Text="{Binding Level}" IsVisible="{Binding ShowLevelBadge}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28" FontWeight="SemiBold" Foreground="White" OutlineBrush="Black" OutlineThickness="1.5"/>
+                    <Image Source="avares://Ascendex/Assets/pokeball.png" IsVisible="{Binding ShowCatchingPokeball}" Width="36" Height="36" HorizontalAlignment="Center" VerticalAlignment="Center" Stretch="Uniform"/>
+                  </Panel>
                 </Border>
 
                 <Border Grid.Column="1" Background="White"/>

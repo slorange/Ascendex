@@ -16,9 +16,12 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     private readonly Action<TypeLevelContribution[]> _recordTypeLevelContributions;
     private readonly Action<PokemonTrainingBarViewModel> _recordLevelChanged;
     private readonly Action<PokemonTrainingBarViewModel> _toggleTrainingRequested;
-    private readonly Func<double>? _getProgressMultiplier;
+    private readonly Func<double>? _getTrainingProgressMultiplier;
+    private readonly Func<double>? _getCatchProgressMultiplier;
+    private readonly Func<bool>? _qualifiesForFirstCatchSpeedBonus;
     private readonly EvolutionStage[]? _evolutionChain;
     private readonly double _progressRequiredPerLevelExponent;
+    private readonly bool _allowsCatching;
     private readonly DispatcherTimer _trainingTimer;
 
     public PokemonTrainingBarViewModel(
@@ -31,13 +34,19 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         Action<TypeLevelContribution[]> recordTypeLevelContributions,
         double progressRequired,
         double progressRequiredPerLevelExponent,
-        Func<double>? getProgressMultiplier = null,
-        EvolutionStage[]? evolutionChain = null)
+        Func<double>? getTrainingProgressMultiplier = null,
+        EvolutionStage[]? evolutionChain = null,
+        bool allowsCatching = false,
+        Func<bool>? qualifiesForFirstCatchSpeedBonus = null,
+        Func<double>? getCatchProgressMultiplier = null)
     {
         _recordTypeLevelContributions = recordTypeLevelContributions;
         _recordLevelChanged = recordLevelChanged;
         _toggleTrainingRequested = toggleTrainingRequested;
-        _getProgressMultiplier = getProgressMultiplier;
+        _getTrainingProgressMultiplier = getTrainingProgressMultiplier;
+        _getCatchProgressMultiplier = getCatchProgressMultiplier;
+        _qualifiesForFirstCatchSpeedBonus = qualifiesForFirstCatchSpeedBonus;
+        _allowsCatching = allowsCatching;
         _evolutionChain = evolutionChain is { Length: > 0 } ? evolutionChain : null;
         _progressRequiredPerLevelExponent = progressRequiredPerLevelExponent;
         BaseProgressRequired = progressRequired;
@@ -92,18 +101,24 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public double ProgressFraction => ProgressRequired == 0 ? 0 : (double)Progress / ProgressRequired;
 
-    /// <summary>Bar fill for UI: full while training if pace is ultra-fast; otherwise matches <see cref="ProgressFraction"/>.</summary>
+    /// <summary>Bar fill for UI: full while active if pace is ultra-fast; otherwise matches <see cref="ProgressFraction"/>.</summary>
     public double VisualProgressFraction =>
-        IsUltraFastTrainingPace() && IsTraining ? 1.0 : ProgressFraction;
+        IsUltraFastTrainingPace() && IsActivityActive ? 1.0 : ProgressFraction;
 
     public string TimeRemainingText => FormatTimeRemaining();
 
+    public bool IsActivityActive => IsTraining || IsCatching;
+
     public Thickness TrainingBorderThickness =>
-        IsTraining
+        IsActivityActive
             ? new Thickness(MagicNumbersUI.TrainingBar.ActiveOutlineThickness)
             : new Thickness(MagicNumbersUI.TrainingBar.IdleOutlineThickness);
 
-    public IBrush TrainingBorderBrush => IsTraining ? ActiveBorderBrush : IdleBorderBrush;
+    public IBrush TrainingBorderBrush => IsActivityActive ? ActiveBorderBrush : IdleBorderBrush;
+
+    public bool ShowLevelBadge => Level > 0;
+
+    public bool ShowCatchingPokeball => Level == 0 && IsCatching;
 
     [ObservableProperty]
     private int _level;
@@ -113,6 +128,10 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isTraining;
+
+    /// <summary>Uncaught route Pokémon (level 0): separate slower fill from post-catch training.</summary>
+    [ObservableProperty]
+    private bool _isCatching;
 
     /// <summary>When false, the row is hidden (used for battle unlock order; always true for route Pokémon).</summary>
     [ObservableProperty]
@@ -127,12 +146,24 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     partial void OnLevelChanged(int value)
     {
+        if (value >= 1 && IsCatching)
+        {
+            IsCatching = false;
+        }
+
         ApplyEvolutionStageForCurrentLevel();
         OnPropertyChanged(nameof(ProgressRequired));
         OnPropertyChanged(nameof(ProgressFraction));
         OnPropertyChanged(nameof(VisualProgressFraction));
         OnPropertyChanged(nameof(TimeRemainingText));
+        NotifyLevelBadgeVisibilityChanged();
         _recordLevelChanged(this);
+    }
+
+    private void NotifyLevelBadgeVisibilityChanged()
+    {
+        OnPropertyChanged(nameof(ShowLevelBadge));
+        OnPropertyChanged(nameof(ShowCatchingPokeball));
     }
 
     private int GetActiveStageIndexZeroBased()
@@ -219,11 +250,24 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     partial void OnIsTrainingChanged(bool value)
     {
+        OnActivityStateChanged();
+    }
+
+    partial void OnIsCatchingChanged(bool value)
+    {
+        NotifyLevelBadgeVisibilityChanged();
+        OnActivityStateChanged();
+    }
+
+    private void OnActivityStateChanged()
+    {
+        OnPropertyChanged(nameof(IsActivityActive));
         OnPropertyChanged(nameof(TrainingBorderThickness));
         OnPropertyChanged(nameof(TrainingBorderBrush));
         OnPropertyChanged(nameof(VisualProgressFraction));
+        OnPropertyChanged(nameof(TimeRemainingText));
 
-        if (value)
+        if (IsTraining || IsCatching)
         {
             _trainingTimer.Start();
             return;
@@ -243,6 +287,19 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         IsTraining = isTraining;
     }
 
+    public void SetCatching(bool isCatching)
+    {
+        if (!_allowsCatching || Level > 0)
+        {
+            IsCatching = false;
+            return;
+        }
+
+        IsCatching = isCatching;
+    }
+
+    public bool CanCatch => _allowsCatching && Level == 0;
+
     /// <summary>Call when an external factor changes effective training speed so <see cref="TimeRemainingText"/> and <see cref="VisualProgressFraction"/> refresh without waiting for the next tick.</summary>
     public void NotifyTimeRemainingChanged()
     {
@@ -257,7 +314,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             return;
         }
 
-        var increase = GameBalance.Training.ProgressPerTick * GetClampedProgressMultiplier();
+        var increase = GetEffectiveProgressPerTick();
         Progress += increase;
 
 		if (Progress < ProgressRequired)
@@ -294,7 +351,8 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     private double GetClampedProgressMultiplier()
     {
-        var raw = _getProgressMultiplier?.Invoke() ?? GameBalance.Training.NeutralSpeedMultiplier;
+        var getMultiplier = IsCatching ? _getCatchProgressMultiplier : _getTrainingProgressMultiplier;
+        var raw = getMultiplier?.Invoke() ?? GameBalance.Training.NeutralSpeedMultiplier;
         if (double.IsNaN(raw) || double.IsInfinity(raw))
         {
             return GameBalance.Training.NeutralSpeedMultiplier;
@@ -303,7 +361,24 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         return Math.Clamp(raw, GameBalance.Training.MinExternalSpeedMultiplier, GameBalance.Training.MaxExternalSpeedMultiplier);
     }
 
-    private double GetEffectiveProgressPerTick() => GameBalance.Training.ProgressPerTick * GetClampedProgressMultiplier();
+    private double GetActivitySpeedMultiplier()
+    {
+        if (!IsCatching)
+        {
+            return 1.0;
+        }
+
+        var multiplier = GameBalance.Routes.CatchSpeedMultiplier;
+        if (_qualifiesForFirstCatchSpeedBonus?.Invoke() == true)
+        {
+            multiplier *= GameBalance.Routes.FirstCatchSpeedMultiplier;
+        }
+
+        return multiplier;
+    }
+
+    private double GetEffectiveProgressPerTick() =>
+        GameBalance.Training.ProgressPerTick * GetActivitySpeedMultiplier() * GetClampedProgressMultiplier();
 
     /// <summary>True when a full bar at the current per-tick rate would complete in under <see cref="MagicNumbersUI.TimeRemaining.UltraFastFullBarMaxDurationSeconds"/> (presentation-only fast path).</summary>
     private bool IsUltraFastTrainingPace()
