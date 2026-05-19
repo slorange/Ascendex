@@ -47,7 +47,7 @@
       <ItemsControl ItemsSource="{Binding BattleBars}" HorizontalAlignment="Stretch">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
-            <StackPanel Spacing="12" />
+            <StackPanel />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>

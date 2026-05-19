@@ -68,6 +68,9 @@ public static class GameBalance
 
         /// <summary>Extra catch speed while no route Pokémon has been caught yet (multiplies <see cref="CatchSpeedMultiplier"/>).</summary>
         public const double FirstCatchSpeedMultiplier = 100.0;
+
+        /// <summary>Route boss Pokémon: catch progress per tick is divided by this (training speed unchanged).</summary>
+        public const double BossCatchDifficultyMultiplier = 20.0;
     }
 
     /// <summary>Gym / Elite Four battle list pacing and cross-mode bonuses.</summary>

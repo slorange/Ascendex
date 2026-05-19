@@ -44,6 +44,9 @@ public class MainViewModel : ViewModelBase
             ["Squirtle"] = new("#73B9F2", "#071C2A"),
             ["Pikachu"] = new("#F3D44F", "#2B2400"),
             ["Eevee"] = new("#C9A27A", "#24150A"),
+            ["Vaporeon"] = new("#6890F0", "#0C1830"),
+            ["Flareon"] = new("#F87050", "#2A0C08"),
+            ["Jolteon"] = new("#F8E030", "#262004"),
             ["Pidgey"] = new("#D8C3A2", "#20150B"),
             ["Rattata"] = new("#B98AD3", "#130819"),
             ["Spearow"] = new("#C68A58", "#201109"),
@@ -111,7 +114,12 @@ public class MainViewModel : ViewModelBase
             ["Koffing"] = new("#9162B2", "#14091C"),
             ["Magmar"] = new("#F07040", "#281008"),
             ["Ditto"] = new("#E8C0E8", "#301828"),
-            ["Grimer"] = new("#7A5C97", "#F7F4FF")
+            ["Grimer"] = new("#7A5C97", "#F7F4FF"),
+            ["Snorlax"] = new("#2E4A6E", "#E8F0F8"),
+            ["Zapdos"] = new("#F8D030", "#2A2000"),
+            ["Articuno"] = new("#78D8F8", "#082028"),
+            ["Moltres"] = new("#F87830", "#2A1000"),
+            ["Mewtwo"] = new("#A070C8", "#180820")
         };
 
     private readonly List<PokemonTrainingBarViewModel> _allPokemonBars;
@@ -119,6 +127,9 @@ public class MainViewModel : ViewModelBase
     private readonly Dictionary<string, TypeCounterViewModel> _typeCountersByKey;
     private Dictionary<string, AreaSelectionViewModel> _areasByDisplayName = null!;
     private Dictionary<string, PokemonTrainingBarViewModel> _trainersByName = null!;
+    private PokemonTrainingBarViewModel? _celadonFlareonBar;
+    private PokemonTrainingBarViewModel? _celadonJolteonBar;
+    private bool _celadonAlternateEeveelutionsUnlocked;
     private string _currentAreaName = string.Empty;
     private int _selectedAreaIndex;
     private int _selectedMainTab;
@@ -172,8 +183,7 @@ public class MainViewModel : ViewModelBase
             CreatePokemon("Bulbasaur", "grass"),
             CreatePokemon("Charmander", "fire"),
             CreatePokemon("Squirtle", "water"),
-            CreatePokemon("Pikachu", "electric"),
-            CreatePokemon("Eevee", "normal"));
+            CreatePokemon("Pikachu", "electric"));
 
         AddArea(
             "R1",
@@ -253,26 +263,35 @@ public class MainViewModel : ViewModelBase
             CreatePokemon("Gastly", "ghost"),
             CreatePokemon("Cubone", "ground"));
 
+        _celadonFlareonBar = CreatePokemon("Flareon", "fire", allowsCatching: false);
+        _celadonJolteonBar = CreatePokemon("Jolteon", "electric", allowsCatching: false);
+        _celadonFlareonBar.IsVisible = false;
+        _celadonJolteonBar.IsVisible = false;
+
         AddArea(
             "GC",
-            "Celadon Game Corner",
-            CreatePokemon("Scyther", "bug"),
-            CreatePokemon("Pinsir", "bug"),
+            "Celadon",
             CreatePokemon("Porygon", "normal"),
-            CreatePokemon("Dratini", "dragon"));
+            CreatePokemon("Dratini", "dragon"),
+            CreatePokemon("Eevee", "normal"),
+            _celadonFlareonBar,
+            _celadonJolteonBar);
 
         AddArea(
             "CR",
             "Cycling Road",
             CreatePokemon("Ponyta", "fire"),
-            CreatePokemon("Doduo", "flying"));
+            CreatePokemon("Doduo", "flying"),
+            CreateBossPokemon("Snorlax", "normal"));
 
         AddArea(
             "SZ1",
             "Safari Zone 1",
             CreatePokemon("Exeggcute", "grass"),
             CreatePokemon("Rhyhorn", "ground"),
-            CreatePokemon("Tauros", "normal"));
+            CreatePokemon("Tauros", "normal"),
+            CreatePokemon("Scyther", "bug"),
+            CreatePokemon("Pinsir", "bug"));
 
         AddArea(
             "SZ2",
@@ -302,7 +321,8 @@ public class MainViewModel : ViewModelBase
             "Power Plant",
             CreatePokemon("Magnemite", "electric"),
             CreatePokemon("Voltorb", "electric"),
-            CreatePokemon("Electabuzz", "electric"));
+            CreatePokemon("Electabuzz", "electric"),
+            CreateBossPokemon("Zapdos", "electric"));
 
         AddArea(
             "SFI",
@@ -310,7 +330,8 @@ public class MainViewModel : ViewModelBase
             CreatePokemon("Seel", "water"),
             CreatePokemon("Shellder", "water"),
             CreatePokemon("Krabby", "water"),
-            CreatePokemon("Jynx", "ice"));
+            CreatePokemon("Jynx", "ice"),
+            CreateBossPokemon("Articuno", "ice"));
 
         AddArea(
             "PM",
@@ -326,6 +347,16 @@ public class MainViewModel : ViewModelBase
             CreatePokemon("Omanyte", "rock"),
             CreatePokemon("Kabuto", "rock"),
             CreatePokemon("Aerodactyl", "rock"));
+
+        AddArea(
+            "VR",
+            "Victory Road",
+            CreateBossPokemon("Moltres", "fire"));
+
+        AddArea(
+            "CC",
+            "Cerulean Cave",
+            CreateBossPokemon("Mewtwo", "psychic"));
 
         InitializeBattles();
         BuildProgressionLookups();
@@ -428,7 +459,9 @@ public class MainViewModel : ViewModelBase
     private PokemonTrainingBarViewModel CreatePokemon(
         string name,
         string typeKey,
-        double progressRequired = GameBalance.Training.DefaultBaseProgressRequired)
+        double progressRequired = GameBalance.Training.DefaultBaseProgressRequired,
+        double catchDifficultyMultiplier = 1.0,
+        bool allowsCatching = true)
     {
         var palette = ResolveBarPalette(name, typeKey);
         var evolutionChain = PokemonEvolutionData.TryGetChain(name);
@@ -445,13 +478,46 @@ public class MainViewModel : ViewModelBase
             GameBalance.Training.RoutePokemonProgressRequiredPerLevelExponent,
             getTrainingProgressMultiplier: GetPokemonTrainingSpeedFromBattleClears,
             evolutionChain: evolutionChain,
-            allowsCatching: true,
+            allowsCatching: allowsCatching,
             qualifiesForFirstCatchSpeedBonus: QualifiesForFirstCatchSpeedBonus,
-            getCatchProgressMultiplier: GetPokemonCatchSpeedFromBattleClears);
+            getCatchProgressMultiplier: GetPokemonCatchSpeedFromBattleClears,
+            catchDifficultyMultiplier: catchDifficultyMultiplier);
     }
+
+    private PokemonTrainingBarViewModel CreateBossPokemon(string name, string typeKey) =>
+        CreatePokemon(name, typeKey, catchDifficultyMultiplier: GameBalance.Routes.BossCatchDifficultyMultiplier);
 
     private bool QualifiesForFirstCatchSpeedBonus() =>
         !_allPokemonBars.Any(b => b.Level >= GameBalance.Routes.MinPokemonLevelToPassRoute);
+
+    /// <summary>Celadon: Flareon and Jolteon stay hidden until Eevee's bar reaches Vaporeon (level 25).</summary>
+    private void TryUnlockCeladonAlternateEeveelutions(PokemonTrainingBarViewModel pokemonBar)
+    {
+        if (_celadonAlternateEeveelutionsUnlocked
+            || _celadonFlareonBar is null
+            || _celadonJolteonBar is null
+            || pokemonBar.SpeciesLineRoot != "Eevee")
+        {
+            return;
+        }
+
+        var chain = PokemonEvolutionData.TryGetChain("Eevee");
+        if (chain is not { Length: >= 2 })
+        {
+            return;
+        }
+
+        if (pokemonBar.Level < chain[1].MinLevel)
+        {
+            return;
+        }
+
+        _celadonAlternateEeveelutionsUnlocked = true;
+        _celadonFlareonBar.IsVisible = true;
+        _celadonJolteonBar.IsVisible = true;
+        _celadonFlareonBar.GrantAtLevel(25);
+        _celadonJolteonBar.GrantAtLevel(25);
+    }
 
     private static PokemonBarPalette ResolveBarPalette(string name, string typeKey)
     {
@@ -758,6 +824,7 @@ public class MainViewModel : ViewModelBase
 
     private void OnPokemonLevelChanged(PokemonTrainingBarViewModel pokemonBar)
     {
+        TryUnlockCeladonAlternateEeveelutions(pokemonBar);
         RefreshRoutesTabCatchIndicator();
         RefreshPokedexCells();
         UpdateProgressionVisibility();
@@ -805,6 +872,14 @@ public class MainViewModel : ViewModelBase
             else if (_trainersByName.TryGetValue(step.Key, out var trainer))
             {
                 trainer.IsVisible = unlocked;
+            }
+        }
+
+        foreach (var (routeKey, unlockWhen) in GameProgression.OptionalRouteUnlocks)
+        {
+            if (_areasByDisplayName.TryGetValue(routeKey, out var area))
+            {
+                area.IsVisible = IsProgressionStepComplete(unlockWhen);
             }
         }
     }

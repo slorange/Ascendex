@@ -21,6 +21,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     private readonly Func<bool>? _qualifiesForFirstCatchSpeedBonus;
     private readonly EvolutionStage[]? _evolutionChain;
     private readonly double _progressRequiredPerLevelExponent;
+    private readonly double _catchDifficultyMultiplier;
     private readonly bool _allowsCatching;
     private readonly DispatcherTimer _trainingTimer;
 
@@ -38,7 +39,8 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         EvolutionStage[]? evolutionChain = null,
         bool allowsCatching = false,
         Func<bool>? qualifiesForFirstCatchSpeedBonus = null,
-        Func<double>? getCatchProgressMultiplier = null)
+        Func<double>? getCatchProgressMultiplier = null,
+        double catchDifficultyMultiplier = 1.0)
     {
         _recordTypeLevelContributions = recordTypeLevelContributions;
         _recordLevelChanged = recordLevelChanged;
@@ -47,6 +49,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         _getCatchProgressMultiplier = getCatchProgressMultiplier;
         _qualifiesForFirstCatchSpeedBonus = qualifiesForFirstCatchSpeedBonus;
         _allowsCatching = allowsCatching;
+        _catchDifficultyMultiplier = catchDifficultyMultiplier > 0 ? catchDifficultyMultiplier : 1.0;
         _evolutionChain = evolutionChain is { Length: > 0 } ? evolutionChain : null;
         _progressRequiredPerLevelExponent = progressRequiredPerLevelExponent;
         BaseProgressRequired = progressRequired;
@@ -215,6 +218,11 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     private void RecordTypeLevelContributionsForCurrentStage()
     {
+        if (!IsVisible)
+        {
+            return;
+        }
+
         var chainLength = _evolutionChain?.Length ?? 1;
         var stageIndex = GetActiveStageIndexZeroBased();
         var totalPoints = TypeLevelUpLookup.PointsForChainStage(chainLength, stageIndex);
@@ -300,6 +308,29 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public bool CanCatch => _allowsCatching && Level == 0;
 
+    /// <summary>Sets bar level without catch; type points apply only while <see cref="IsVisible"/> (one tick per level gained).</summary>
+    public void GrantAtLevel(int targetLevel)
+    {
+        if (Level >= targetLevel)
+        {
+            return;
+        }
+
+        IsCatching = false;
+        var levelUps = targetLevel - Level;
+        Level = targetLevel;
+
+        if (!IsVisible || levelUps <= 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < levelUps; i++)
+        {
+            RecordTypeLevelContributionsForCurrentStage();
+        }
+    }
+
     /// <summary>Call when an external factor changes effective training speed so <see cref="TimeRemainingText"/> and <see cref="VisualProgressFraction"/> refresh without waiting for the next tick.</summary>
     public void NotifyTimeRemainingChanged()
     {
@@ -329,7 +360,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             var previousStageIndex = GetActiveStageIndexZeroBased();
             Level++;
             var newStageIndex = GetActiveStageIndexZeroBased();
-            if (newStageIndex > previousStageIndex)
+            if (newStageIndex > previousStageIndex && IsVisible)
             {
                 var oldPerLevel = TypeLevelUpLookup.PointsForChainStage(chain.Length, previousStageIndex);
                 var newPerLevel = TypeLevelUpLookup.PointsForChainStage(chain.Length, newStageIndex);
@@ -377,8 +408,16 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         return multiplier;
     }
 
-    private double GetEffectiveProgressPerTick() =>
-        GameBalance.Training.ProgressPerTick * GetActivitySpeedMultiplier() * GetClampedProgressMultiplier();
+    private double GetEffectiveProgressPerTick()
+    {
+        var perTick = GameBalance.Training.ProgressPerTick * GetActivitySpeedMultiplier() * GetClampedProgressMultiplier();
+        if (IsCatching && _catchDifficultyMultiplier > 1.0)
+        {
+            perTick /= _catchDifficultyMultiplier;
+        }
+
+        return perTick;
+    }
 
     /// <summary>True when a full bar at the current per-tick rate would complete in under <see cref="MagicNumbersUI.TimeRemaining.UltraFastFullBarMaxDurationSeconds"/> (presentation-only fast path).</summary>
     private bool IsUltraFastTrainingPace()

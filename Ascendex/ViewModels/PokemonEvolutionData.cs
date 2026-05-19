@@ -84,7 +84,7 @@ public static class PokemonEvolutionData
         ["Eevee"] =
         [
             new(0, "Eevee", "normal", "#C9A27A", "#24150A"),
-            new(25, "Jolteon", "electric", "#F8E030", "#262004"),
+            new(25, "Vaporeon", "water", "#6890F0", "#0C1830"),
         ],
         ["Pidgey"] =
         [

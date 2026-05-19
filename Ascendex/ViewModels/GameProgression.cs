@@ -11,6 +11,12 @@ public readonly record struct ProgressionEntry(ProgressionEntryKind Kind, string
 /// <summary>Linear world order: each step unlocks when the previous step is complete.</summary>
 public static class GameProgression
 {
+    /// <summary>Side routes: visible when <see cref="UnlockWhen"/> is complete, but not required for the next entry in <see cref="Order"/>.</summary>
+    public static readonly (string RouteKey, ProgressionEntry UnlockWhen)[] OptionalRouteUnlocks =
+    [
+        ("Victory Road", new(ProgressionEntryKind.Trainer, "Giovanni")),
+    ];
+
     public static readonly ProgressionEntry[] Order =
     [
         new(ProgressionEntryKind.Route, "Pallet Town"),
@@ -28,7 +34,7 @@ public static class GameProgression
         new(ProgressionEntryKind.Trainer, "Lt. Surge"),
         new(ProgressionEntryKind.Route, "Rock Tunnel"),
         new(ProgressionEntryKind.Route, "Pokemon Tower"),
-        new(ProgressionEntryKind.Route, "Celadon Game Corner"),
+        new(ProgressionEntryKind.Route, "Celadon"),
         new(ProgressionEntryKind.Trainer, "Erika"),
         new(ProgressionEntryKind.Route, "Cycling Road"),
         new(ProgressionEntryKind.Route, "Safari Zone 1"),
@@ -48,5 +54,6 @@ public static class GameProgression
         new(ProgressionEntryKind.Trainer, "Agatha"),
         new(ProgressionEntryKind.Trainer, "Lance"),
         new(ProgressionEntryKind.Trainer, "Blue"),
+        new(ProgressionEntryKind.Route, "Cerulean Cave"),
     ];
 }
