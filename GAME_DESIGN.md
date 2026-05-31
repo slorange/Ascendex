@@ -109,8 +109,8 @@ Static lists consolidated under `Ascendex/Game/Content/`.
 **Step 2 — Separate runtime state from VMs (done)**  
 `RunState`, `GameSession`, and bar VMs projecting from `SpeciesProgress` / `TrainerProgress`. Progression, pokedex, speed bonuses, and type counters live in the game layer.
 
-**Step 3 — Move simulation off bar VMs**  
-Relocate tick/level-up/evolution/type-point logic out of `PokemonTrainingBarViewModel` into game-layer types. Exact shape (central tick vs per-entity) can be decided in Step 2; default behavior stays one active catch + one active train.
+**Step 3 — Move simulation off bar VMs (done)**  
+`TrainingSimulator` owns tick/level-up/type-point logic. One `GameTickLoop` drives `GameSession.Tick()`. Bar VMs are display-only (evolution visuals, time-remaining text).
 
 Steps 2–3 prepare for save/load but **do not require implementing save/load yet**.
 

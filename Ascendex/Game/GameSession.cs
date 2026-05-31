@@ -8,6 +8,9 @@ namespace Ascendex.Game;
 
 public sealed class GameSession
 {
+    private readonly Dictionary<string, SpeciesBarConfig> _speciesBarConfigs = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TrainerBarConfig> _trainerBarConfigs = new(StringComparer.Ordinal);
+
     public RunState State { get; } = new();
 
     public event Action<string>? SpeciesLevelChanged;
@@ -20,12 +23,18 @@ public sealed class GameSession
 
     public event Action? CeladonAlternatesUnlocked;
 
+    public event Action? ActiveBarsChanged;
+
     public static GameSession CreateNew()
     {
         var session = new GameSession();
         session.InitializeState();
         return session;
     }
+
+    public SpeciesBarConfig GetSpeciesBarConfig(string speciesRootName) => _speciesBarConfigs[speciesRootName];
+
+    public TrainerBarConfig GetTrainerBarConfig(string trainerId) => _trainerBarConfigs[trainerId];
 
     public SpeciesProgress GetSpecies(string speciesRootName) => State.SpeciesByRoot[speciesRootName];
 
@@ -35,6 +44,31 @@ public sealed class GameSession
         State.TypeCounterCounts.TryGetValue(typeKey, out var count) ? count : 0;
 
     public void SelectRoute(string routeId) => State.SelectedRouteId = routeId;
+
+    public void Tick()
+    {
+        foreach (var config in _speciesBarConfigs.Values)
+        {
+            var progress = GetSpecies(config.SpeciesRootName);
+            if (progress.IsTraining || progress.IsCatching)
+            {
+                TrainingSimulator.TickSpecies(this, progress, config);
+            }
+        }
+
+        foreach (var config in _trainerBarConfigs.Values)
+        {
+            var progress = GetTrainer(config.TrainerId);
+            if (progress.IsTraining)
+            {
+                TrainingSimulator.TickTrainer(this, progress, config);
+            }
+        }
+    }
+
+    public bool HasActiveBars() =>
+        State.SpeciesByRoot.Values.Any(progress => progress.IsTraining || progress.IsCatching)
+        || State.TrainersById.Values.Any(progress => progress.IsTraining);
 
     public void ToggleSpeciesActivity(string speciesRootName, bool catchMode)
     {
@@ -51,17 +85,20 @@ public sealed class GameSession
                 selected.IsCatching = false;
             }
 
+            NotifyActiveBarsChanged();
             return;
         }
 
         if (selected.IsTraining)
         {
             selected.IsTraining = false;
+            NotifyActiveBarsChanged();
             return;
         }
 
         ClearSpeciesTrainingExcept(speciesRootName);
         selected.IsTraining = true;
+        NotifyActiveBarsChanged();
     }
 
     public void ToggleTrainerActivity(string trainerId)
@@ -70,6 +107,7 @@ public sealed class GameSession
         if (selected.IsTraining)
         {
             selected.IsTraining = false;
+            NotifyActiveBarsChanged();
             return;
         }
 
@@ -77,14 +115,17 @@ public sealed class GameSession
         {
             trainer.IsTraining = trainer.TrainerId == trainerId;
         }
+
+        NotifyActiveBarsChanged();
     }
 
-    public void OnSpeciesLevelChanged(string speciesRootName)
+    internal void NotifySpeciesLevelChanged(string speciesRootName)
     {
         var progress = GetSpecies(speciesRootName);
         if (progress.Level >= 1 && progress.IsCatching)
         {
             progress.IsCatching = false;
+            NotifyActiveBarsChanged();
         }
 
         TryUnlockCeladonAlternateEeveelutions(speciesRootName);
@@ -92,7 +133,7 @@ public sealed class GameSession
         ProgressionChanged?.Invoke();
     }
 
-    public void OnTrainerLevelChanged()
+    internal void NotifyTrainerLevelChanged()
     {
         TrainerLevelChanged?.Invoke();
         ProgressionChanged?.Invoke();
@@ -123,17 +164,11 @@ public sealed class GameSession
         }
     }
 
-    public void GrantSpeciesLevels(string speciesRootName, int targetLevel)
+    public void GrantSpeciesLevelsWithTypePoints(string speciesRootName, int targetLevel)
     {
         var progress = GetSpecies(speciesRootName);
-        if (progress.Level >= targetLevel)
-        {
-            return;
-        }
-
-        progress.IsCatching = false;
-        progress.Level = targetLevel;
-        OnSpeciesLevelChanged(speciesRootName);
+        var config = GetSpeciesBarConfig(speciesRootName);
+        TrainingSimulator.GrantSpeciesLevelsWithTypePoints(this, progress, config, targetLevel);
     }
 
     public bool QualifiesForFirstCatchSpeedBonus() =>
@@ -205,24 +240,48 @@ public sealed class GameSession
         {
             foreach (var spawn in route.Spawns)
             {
-                if (State.SpeciesByRoot.ContainsKey(spawn.SpeciesRootName))
+                if (!State.SpeciesByRoot.ContainsKey(spawn.SpeciesRootName))
+                {
+                    State.SpeciesByRoot[spawn.SpeciesRootName] = new SpeciesProgress
+                    {
+                        SpeciesRootName = spawn.SpeciesRootName,
+                        IsVisible = !spawn.StartsHidden,
+                    };
+                }
+
+                if (_speciesBarConfigs.ContainsKey(spawn.SpeciesRootName))
                 {
                     continue;
                 }
 
-                State.SpeciesByRoot[spawn.SpeciesRootName] = new SpeciesProgress
+                var catchMultiplier = spawn.IsBoss ? GameBalance.Routes.BossCatchDifficultyMultiplier : 1.0;
+                _speciesBarConfigs[spawn.SpeciesRootName] = new SpeciesBarConfig
                 {
                     SpeciesRootName = spawn.SpeciesRootName,
-                    IsVisible = !spawn.StartsHidden,
+                    BaseProgressRequired = GameBalance.Training.DefaultBaseProgressRequired,
+                    ProgressRequiredPerLevelExponent = GameBalance.Training.RoutePokemonProgressRequiredPerLevelExponent,
+                    CatchDifficultyMultiplier = catchMultiplier,
+                    AllowsCatching = spawn.AllowsCatching,
+                    EvolutionChain = KantoSpeciesCatalog.TryGetEvolutionChain(spawn.SpeciesRootName),
                 };
             }
         }
 
-        foreach (var trainer in KantoTrainerCatalog.All)
+        for (var i = 0; i < KantoTrainerCatalog.All.Length; i++)
         {
+            var trainer = KantoTrainerCatalog.All[i];
             State.TrainersById[trainer.Id] = new TrainerProgress
             {
                 TrainerId = trainer.Id,
+            };
+
+            var baseRequired = GameBalance.Battles.FirstTrainerBaseProgress
+                * Math.Pow(GameBalance.Battles.PerTrainerDifficultyStep, i);
+            _trainerBarConfigs[trainer.Id] = new TrainerBarConfig
+            {
+                TrainerId = trainer.Id,
+                BaseProgressRequired = baseRequired,
+                ProgressRequiredPerLevelExponent = GameBalance.Battles.BattleProgressRequiredPerLevelExponent,
             };
         }
 
@@ -255,6 +314,8 @@ public sealed class GameSession
             }
         }
     }
+
+    private void NotifyActiveBarsChanged() => ActiveBarsChanged?.Invoke();
 
     /// <summary>Celadon: Flareon and Jolteon stay hidden until Eevee's bar reaches Vaporeon (level 25).</summary>
     private void TryUnlockCeladonAlternateEeveelutions(string speciesRootName)
