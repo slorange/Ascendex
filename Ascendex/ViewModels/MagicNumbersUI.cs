@@ -44,4 +44,43 @@ public static class MagicNumbersUI
 
         public const string IdleForeground = "#B8C0CC";
     }
+
+    public static class PokedexGrid
+    {
+        public const int Columns = 15;
+
+        public const int Rows = 10;
+
+        public const double MinCellSize = 10;
+
+        public const double HorizontalMarginTotal = 32;
+    }
+
+    public static class BadgeGrid
+    {
+        public const int GymColumns = 8;
+
+        public const int LeagueColumns = 5;
+
+        public const string UnearnedBackground = "#1A1D22";
+
+        public const string UnearnedBorder = "#5F6470";
+
+        public const string EarnedGymBorder = "#E8C547";
+
+        public const string EarnedLeagueBorder = "#C0C8D8";
+
+        public const string EarnedChampionBorder = "#FF6B8A";
+    }
+
+    public static class CollectionsDetail
+    {
+        public const string FlyoutBackground = "#2E333B";
+
+        public const double MaxWidth = 280;
+
+        public const double FontSize = 14;
+
+        public const double Padding = 12;
+    }
 }

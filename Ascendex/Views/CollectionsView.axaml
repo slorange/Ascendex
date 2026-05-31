@@ -14,18 +14,50 @@
   </Design.DataContext>
 
   <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-    <StackPanel Margin="16,18" Spacing="14" HorizontalAlignment="Center">
-      <controls:OutlinedTextBlock Text="Pokédex" Foreground="White" FontSize="28" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1.5" HorizontalAlignment="Center"/>
+    <StackPanel Margin="16,18" Spacing="12" HorizontalAlignment="Center">
+      <controls:OutlinedTextBlock Text="Pokédex" Foreground="White" FontSize="24" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1.5" HorizontalAlignment="Center"/>
       <Border x:Name="PokedexGridHost" HorizontalAlignment="Center" ClipToBounds="True">
         <ItemsControl ItemsSource="{Binding PokedexCells}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
-              <UniformGrid Columns="10" Rows="15"/>
+              <UniformGrid Columns="15" Rows="10"/>
             </ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:PokedexCellViewModel">
-              <Border BorderBrush="White" BorderThickness="1" Background="{Binding FillBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+              <controls:CollectionsInfoCell BorderBrush="White" BorderThickness="1" Background="{Binding FillBrush}" DetailText="{Binding TooltipText}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+
+      <controls:OutlinedTextBlock Text="Gym Badges" Foreground="White" FontSize="18" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+      <Border x:Name="GymBadgeGridHost" HorizontalAlignment="Center" ClipToBounds="True">
+        <ItemsControl ItemsSource="{Binding GymBadgeSlots}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <UniformGrid Columns="8" Rows="1"/>
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:BadgeSlotViewModel">
+              <controls:CollectionsInfoCell BorderBrush="{Binding BorderBrush}" BorderThickness="2" Background="{Binding BackgroundBrush}" DetailText="{Binding TooltipText}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+
+      <controls:OutlinedTextBlock Text="Indigo League" Foreground="White" FontSize="18" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1" HorizontalAlignment="Center"/>
+      <Border x:Name="LeagueBadgeGridHost" HorizontalAlignment="Center" ClipToBounds="True">
+        <ItemsControl ItemsSource="{Binding LeagueHonorSlots}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <UniformGrid Columns="5" Rows="1"/>
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:BadgeSlotViewModel">
+              <controls:CollectionsInfoCell BorderBrush="{Binding BorderBrush}" BorderThickness="2" Background="{Binding BackgroundBrush}" DetailText="{Binding TooltipText}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>

@@ -1,6 +1,6 @@
 # Ascendex — Game Design
 
-Living design doc for the project. **Describes what the build does today**, what we plan to change in code structure next, and ideas on the horizon. Older brainstorming in git history should be treated skeptically if it contradicts the **Current features** section.
+Living design doc for the project. **Describes what the build does today**, recent structural work, and ideas on the horizon. Older brainstorming in git history should be treated skeptically if it contradicts the **Current features** section.
 
 **High concept:** Pokémon-themed incremental game (EthosIdle-style progression lanes) built with Avalonia. Kanto-first scope.
 
@@ -9,19 +9,32 @@ Living design doc for the project. **Describes what the build does today**, what
 - Theme first — mechanics should feel Pokémon-native, not renamed tech trees.
 - Clarity over obscurity — unlock rules should be understandable in play.
 - Satisfying growth — meaningful gains every few minutes.
-- Scalable systems — today’s prototype should not block regions, prestige, or collections meta later.
+- Scalable systems — today's prototype should not block regions, prestige, or collections meta later.
 
 ---
 
 ## Current features
 
-What the app actually does in the current prototype. Balance numbers live in `Ascendex/ViewModels/GameBalance.cs`; UI-only constants in `MagicNumbersUI.cs`.
+What the app actually does today. Balance numbers live in `Ascendex/Game/GameBalance.cs`; UI-only constants in `ViewModels/MagicNumbersUI.cs`; persistence settings in `Game/Save/SaveGameSettings.cs`.
 
 ### Platform and shell
 
 - Avalonia UI targeting Desktop, Android, iOS, and Browser.
-- Single `MainViewModel` owns all game state; constructed directly in `App.axaml.cs` (no DI, no save service).
+- `MainViewModel.Create()` loads save via `SaveGameService`; `App.axaml.cs` wires the main view.
 - Bottom tabs: **Routes**, **Battles**, **Collections**.
+- Bank-time banner at top when offline time is stored or being spent at 3× speed.
+
+### Architecture (current)
+
+```
+Game/Content/   read-only catalogs (species, routes, trainers, progression, types, badges)
+Game/           RunState, GameSession, TrainingSimulator, rules, GameBalance
+Game/Save/      versioned JSON save, periodic auto-save, Android OnPause flush
+ViewModels/     thin bindings, GameTickLoop, MagicNumbersUI
+Views/          Avalonia UI
+```
+
+**Refactor steps 1–3 (done):** content catalogs, runtime state + `GameSession`, simulation off bar VMs.
 
 ### Routes tab
 
@@ -31,136 +44,97 @@ What the app actually does in the current prototype. Balance numbers live in `As
 - **Catch vs train:** Uncaught species (level 0) use a separate, slower catch fill (`GameBalance.Routes.CatchSpeedMultiplier`). After level 1, the same bar is used for training. First catch in the run gets a large catch-speed bonus.
 - **Concurrency:** Only one route bar may be catching and only one may be training at a time (global, not per area).
 - **Evolution:** Species with evolution data change name, primary type, and bar colors at level thresholds. Evolution is automatic when the bar level crosses a stage threshold — not player choice.
-- **Route unlock:** Linear world order in `KantoProgressionCatalog.Order`. A route step completes when **any** species in that area reaches level ≥ 1 (`GameBalance.Routes.MinPokemonLevelToPassRoute`). Trainer steps complete when that trainer’s battle bar reaches level ≥ 1. Victory Road unlocks optionally after Giovanni.
+- **Route unlock:** Linear world order in `KantoProgressionCatalog.Order`, keyed by stable `RouteIds` / `TrainerIds`. A route step completes when **any** species in that area reaches level ≥ 1. Trainer steps complete when that trainer's battle bar reaches level ≥ 1. Victory Road unlocks optionally after Giovanni.
 - **Boss species:** Some routes use a harder catch multiplier (legendaries, Snorlax, etc.); training speed is unchanged.
-- **Type counters:** Sixteen types shown at the bottom of the Routes tab. Route level-ups grant type points; dual typings split points between primary and secondary type keys in evolution data. Counter totals speed up battle bar fill.
+- **Type counters:** Sixteen types shown at the bottom of the Routes tab (no Steel/Dark). Route level-ups grant type points; dual typings split points between primary and secondary type keys in evolution data. Counter totals speed up battle bar fill.
 - **Cross-mode bonus:** Clearing gym / Elite Four battle bars (their level = number of clears) speeds up route training; a fraction of that bonus applies to catch speed.
 
 ### Battles tab
 
 - Thirteen trainer bars in order: eight Kanto gyms, Elite Four (Lorelei → Lance), then Blue.
-- Same bar UI as routes, but no catch mode — only repeatable “clear” cycles.
+- Same bar UI as routes, but no catch mode — only repeatable "clear" cycles.
 - Trainers unlock in sync with `KantoProgressionCatalog.Order`.
 - Battle difficulty scales per trainer index (`GameBalance.Battles`).
 
 ### Collections tab
 
-- **Pokédex grid:** 10 × 15 cells for Kanto national dex #001–#150 (`KantoSpeciesCatalog`).
-- Cells stay black until a matching route species has level ≥ 1; evolved forms light up as stages are reached. Fill color is the species’ **primary** type accent (`TypeCatalog`).
-- No badges, shinies, or per-cell metadata yet — only fill color.
+- **Pokédex grid:** 15 × 10 square cells for Kanto national dex #001–#150 (`KantoSpeciesCatalog`). Wider layout leaves vertical room for badges below.
+- Cells stay black until a matching route species has level ≥ 1; evolved forms light up as stages are reached. Fill color is the species' **primary** type accent (`TypeCatalog`).
+- **Badges (in progress):** Two rows under the dex — **Gym Badges** (8 canonical Kanto badges) and **Indigo League** (Elite Four + Champion). Earned slots fill with the trainer's type color and a tier-specific border; unearned slots are dim placeholders. Currently earned when the linked trainer bar reaches level ≥ 1 (same as progression "clear"); dedicated badge flags in save data can split later. Custom art for gym badges vs league honors is planned (see below).
 
-### Static content (today’s pain points)
+### Save / load and offline time
 
-Game content is spread across several large static lists under `ViewModels/`:
+- **Save file:** `%LocalApplicationData%/Ascendex/save.json` (app-private on Android and Windows).
+- **Auto-save:** Every 5 seconds while playing (`SaveGameSettings.AutoSaveInterval`); flush on dispose (desktop close) and Android `OnPause`.
+- **Versioned DTO:** Species/trainer progress, type counters, selected route/tab, Celadon unlock flag, bank time.
+- **Offline model:** Time away adds to **bank time** (capped at 24 h). While bank remains and a bar is active, simulation runs at **3×** and bank drains at 3 seconds per real second (24 h bank ≈ 8 h of boosted play). Instant offline tick catch-up is intentionally disabled.
+
+### Static content
 
 | Data | Location |
 |------|----------|
-| Dex order, evolution chains, standalone palettes | `Game/Content/KantoSpeciesCatalog.cs` |
+| Dex order, evolution chains, palettes | `Game/Content/KantoSpeciesCatalog.cs` |
 | Route definitions + spawns | `Game/Content/KantoRouteCatalog.cs` |
 | Trainer lineup | `Game/Content/KantoTrainerCatalog.cs` |
-| Unlock order (stable route/trainer ids) | `Game/Content/KantoProgressionCatalog.cs` |
+| Badge / league honor definitions | `Game/Content/KantoBadgeCatalog.cs` |
+| Unlock order (stable ids) | `Game/Content/KantoProgressionCatalog.cs` |
 | Type colors + counter list | `Game/Content/TypeCatalog.cs` |
-| Balance knobs | `ViewModels/GameBalance.cs` |
-
-Progression and content are linked by **display name strings** (e.g. `"Route 1"`, `"Brock"`). Typos fail silently.
+| Balance knobs | `Game/GameBalance.cs` |
 
 ### Intentional simplifications
 
-- **Types:** Only sixteen types are tracked — the set relevant to Kanto content. Steel and Dark are omitted (no pure Steel/Dark species in this scope; Magnemite line uses Electric as primary). Secondary types exist in evolution data for type-point splitting but are not fully modeled elsewhere.
-- **Eevee (Celadon):** Intentional exception. Evolution data covers Eevee → Vaporeon at level 25. Flareon and Jolteon are separate hidden bars that unlock when Eevee reaches that threshold; they are granted at level 25 without a normal catch flow. This is special-case code in `MainViewModel`, not a general branching-evolution system. Future catalog work should leave room for one-off rules like this.
+- **Types:** Sixteen types tracked — the set relevant to Kanto content. Steel and Dark omitted for this scope.
+- **Eevee (Celadon):** Flareon and Jolteon are hidden until Eevee hits the Vaporeon threshold; unlock and level grant live in `GameSession`, not a general branching-evolution framework.
 
 ### Not implemented
 
-- Save / load (all progress is in memory for the session).
 - Prestige, currency, shop, achievements.
 - Multiple simultaneous training targets.
 - Shiny Pokémon, challenge run modes, additional regions.
+- Final badge / league honor artwork (placeholders use type color + border tier).
+- Separate badge-earned flags in save (uses trainer level today).
 
 ---
 
-## Planned design update
+## Badge design (Collections)
 
-Near-term **code structure** work — not new player-facing features. Goal: pull game logic and content out of view models, without a big-bang rewrite.
+Kanto has **8 gym badges** but **13 battle milestones** (8 gyms + 4 Elite Four + Champion). Treat these as two visual tiers, not 13 identical "badges":
 
-### Problems we are fixing
+| Tier | Count | Framing | Earned from |
+|------|-------|---------|-------------|
+| **Gym** | 8 | Classic badge silhouette (Boulder, Cascade, …) | Defeating each gym leader |
+| **Elite Four** | 4 | Distinct **league honors** — medallions / sigils, not gym badges | Defeating each E4 member |
+| **Champion** | 1 | Single **Champion emblem** (larger or unique border) | Defeating Blue |
 
-1. **Duplicated catalogs** — species names, colors, routes, and progression authored in multiple places; values can drift.
-2. **Game logic in VMs** — `MainViewModel` and `PokemonTrainingBarViewModel` mix simulation, unlock rules, and UI binding.
-3. **No stable state shape** — progress lives on view models wired with callbacks; hard to test or serialize later.
+**Why not reuse gym badge art for E4?** In canon, only gym leaders award badges. E4 and Champion are separate milestones; using gym-badge frames for Lorelei would feel wrong. Custom league art (even simple geometric icons per type) keeps the fiction clear.
 
-### Target layering (incremental)
+**Catalog:** `KantoBadgeCatalog.GymBadges` and `LeagueHonors` with `BadgeTier` (`Gym`, `EliteFour`, `Champion`). Asset keys can be added when art exists; until then, type-colored cells + tier borders (`MagicNumbersUI.BadgeGrid`).
 
-```
-Content/     read-only catalogs (species, routes, trainers, progression, types)
-Game/        rules + runtime state (when introduced)
-ViewModels/  thin bindings to state
-Views/       Avalonia UI
-```
-
-Keep `GameBalance` and `MagicNumbersUI` as the homes for tunable numbers and presentation constants (may move folders later).
-
-### Refactor phases (small steps)
-
-Do these in order; each step should keep the game playable.
-
-**Step 1 — Content catalogs (done)**  
-Static lists consolidated under `Ascendex/Game/Content/`.
-
-**Step 2 — Separate runtime state from VMs (done)**  
-`RunState`, `GameSession`, and bar VMs projecting from `SpeciesProgress` / `TrainerProgress`. Progression, pokedex, speed bonuses, and type counters live in the game layer.
-
-**Step 3 — Move simulation off bar VMs (done)**  
-`TrainingSimulator` owns tick/level-up/type-point logic. One `GameTickLoop` drives `GameSession.Tick()`. Bar VMs are display-only (evolution visuals, time-remaining text).
-
-Steps 2–3 prepare for save/load but **do not require implementing save/load yet**.
-
-### Data model sketch (for Step 2+)
-
-Lightweight targets — names flexible:
-
-| Concept | Role |
-|---------|------|
-| `SpeciesId`, `RouteId`, `TrainerId` | Stable keys for catalogs and save data |
-| `SpeciesDefinition` | Dex #, stages, palettes, catch rules |
-| `RouteDefinition` | Spawns, display metadata |
-| `TrainerDefinition` | Type, order, battle pacing inputs |
-| `SpeciesProgress` | Level, progress, catching/training flags |
-| `RunState` | All progress for the current play session / run |
-| `SaveGame` | Versioned `{ run, … }` blob when persistence is added |
-
-Meta-progression (`MetaState`: badges, prestige, dex ownership bits) waits until a feature needs it — no empty scaffolding required upfront.
-
-### Out of scope for this refactor pass
-
-- Save/load implementation  
-- Central tick / offline progress  
-- Multi-training slots  
-- Badges UI, shop, shinies, new regions  
-- Generalizing Eevee into a branching-evolution framework  
+**Future:** Persist `BadgeEarned` separately from trainer bar level if clears become repeatable but badge grant should be one-time.
 
 ---
 
 ## Planned future features
 
-Ideas on the horizon — **not scheduled**. Listed so catalog and state design do not paint us into a corner.
+Ideas on the horizon — **not scheduled**.
 
 | Feature | Notes |
 |---------|--------|
-| **Save / load** | Needs versioned `RunState` (and eventually meta state). Blocked on Step 2. |
-| **Badges in Collections** | Track gym/badge completion separately from battle bar level; display in Collections tab. |
-| **Separate catch / train tabs** | UI split; may share one species progress object with two activity modes. |
-| **Prestige / resets** | Run boundary + persistent bonuses; likely triggered post–Elite Four or dex milestones. |
-| **Multi-training** | Replace global single-active-bar rule with configurable training slots. |
-| **Shiny Pokémon** | Per-species or per-instance flags beyond dex fill color. |
-| **Challenge runs** | Run config (e.g. solo type) filtering available content. |
-| **Shop / Pokédollars** | Currency + items; new tab or section. |
-| **Johto, Hoenn, …** | Region catalog, regional dex layout, progression graph per region. |
+| **Badge artwork** | PNG/SVG per `BadgeDefinition`; gym vs league templates in XAML |
+| **Separate catch / train tabs** | UI split; may share one species progress object |
+| **Prestige / resets** | Run boundary + persistent bonuses |
+| **Multi-training** | Replace global single-active-bar rule |
+| **Shiny Pokémon** | Per-species flags beyond dex fill color |
+| **Challenge runs** | Run config filtering available content |
+| **Shop / Pokédollars** | Currency + items |
+| **Johto, Hoenn, …** | Region catalog, regional dex, progression graph |
+| **iOS lifecycle save** | Same pattern as Android `OnPause` |
 
-When picking up a feature, check whether Step 1–2 are far enough along; most of these extend `RunState` / `MetaState` rather than `MainViewModel` special cases.
+Most features extend `RunState` / future `MetaState` rather than `MainViewModel` special cases.
 
 ---
 
 ## Reference
 
 - **Inspiration:** EthosIdle-style progression lanes, Pokémon theming.
-- **Code map:** `ViewModels/MainViewModel.cs` (orchestration), `PokemonTrainingBarViewModel.cs` (bar simulation + UI), `Game/Content/*` (catalogs), `GameBalance.cs`.
+- **Code map:** `ViewModels/MainViewModel.cs` (orchestration), `Game/GameSession.cs` (rules + state), `Game/TrainingSimulator.cs`, `Game/Save/*`, `Game/Content/*`, `Game/GameBalance.cs`.

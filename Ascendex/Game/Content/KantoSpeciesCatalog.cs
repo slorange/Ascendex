@@ -356,6 +356,37 @@ public static class KantoSpeciesCatalog
     public static EvolutionStage[]? TryGetEvolutionChain(string rootSpeciesName) =>
         EvolutionChains.TryGetValue(rootSpeciesName, out var stages) ? stages : null;
 
+    /// <summary>Maps a National Dex display name to the route species root used for progress.</summary>
+    public static bool TryGetRootForDexName(string dexSpeciesName, out string speciesRoot)
+    {
+        if (EvolutionChains.ContainsKey(dexSpeciesName))
+        {
+            speciesRoot = dexSpeciesName;
+            return true;
+        }
+
+        foreach (var (root, stages) in EvolutionChains)
+        {
+            foreach (var stage in stages)
+            {
+                if (stage.Name == dexSpeciesName)
+                {
+                    speciesRoot = root;
+                    return true;
+                }
+            }
+        }
+
+        if (StandaloneSpecies.ContainsKey(dexSpeciesName))
+        {
+            speciesRoot = dexSpeciesName;
+            return true;
+        }
+
+        speciesRoot = string.Empty;
+        return false;
+    }
+
     public static string PrimaryTypeKey(string speciesRootName)
     {
         var chain = TryGetEvolutionChain(speciesRootName);

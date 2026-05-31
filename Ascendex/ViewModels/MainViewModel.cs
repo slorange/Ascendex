@@ -95,6 +95,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         UpdateProgressionVisibility();
         RestoreSelectedArea();
         InitializePokedex();
+        InitializeBadges();
         SelectedMainTab = Math.Clamp(selectedMainTab, 0, 2);
         RefreshBattlesTabProgressTracking();
         _saveService.BindAutoSave(_session, () => SelectedMainTab);
@@ -196,6 +197,10 @@ public class MainViewModel : ViewModelBase, IDisposable
     public ObservableCollection<TypeCounterViewModel> TypeCounters { get; }
 
     public ObservableCollection<PokedexCellViewModel> PokedexCells { get; } = new();
+
+    public ObservableCollection<BadgeSlotViewModel> GymBadgeSlots { get; } = new();
+
+    public ObservableCollection<BadgeSlotViewModel> LeagueHonorSlots { get; } = new();
 
     public string CurrentAreaName
     {
@@ -383,6 +388,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void OnSessionTrainerLevelChanged()
     {
+        RefreshBadgeSlots();
         NotifyAllBarsTimeRemainingChanged();
     }
 
@@ -496,7 +502,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         PokedexCells.Clear();
         for (var i = 0; i < KantoSpeciesCatalog.NationalDexCellCount; i++)
         {
-            PokedexCells.Add(new PokedexCellViewModel());
+            PokedexCells.Add(new PokedexCellViewModel(i, KantoSpeciesCatalog.NationalDexNames[i]));
         }
 
         RefreshPokedexCells();
@@ -507,11 +513,48 @@ public class MainViewModel : ViewModelBase, IDisposable
         foreach (var cell in PokedexCells)
         {
             cell.FillBrush = PokedexCellViewModel.UncaughtFill;
+            cell.TooltipText = CollectionsTooltipFormatter.FormatPokedexCell(cell.SpeciesName, _session.State);
         }
 
         foreach (var fill in PokedexRules.GetFilledCells(_session.State))
         {
             PokedexCells[fill.CellIndex].FillBrush = Brush.Parse(TypeCatalog.AccentHexForTypeKey(fill.TypeKey));
+        }
+    }
+
+    private void InitializeBadges()
+    {
+        GymBadgeSlots.Clear();
+        foreach (var badge in KantoBadgeCatalog.GymBadges)
+        {
+            GymBadgeSlots.Add(new BadgeSlotViewModel(badge));
+        }
+
+        LeagueHonorSlots.Clear();
+        foreach (var honor in KantoBadgeCatalog.LeagueHonors)
+        {
+            LeagueHonorSlots.Add(new BadgeSlotViewModel(honor));
+        }
+
+        RefreshBadgeSlots();
+    }
+
+    private void RefreshBadgeSlots()
+    {
+        RefreshBadgeRow(GymBadgeSlots);
+        RefreshBadgeRow(LeagueHonorSlots);
+    }
+
+    private void RefreshBadgeRow(ObservableCollection<BadgeSlotViewModel> slots)
+    {
+        foreach (var slot in slots)
+        {
+            var trainerId = slot.Definition.TrainerId;
+            var typeKey = KantoTrainerCatalog.All.First(t => t.Id == trainerId).TypeKey;
+            var earned = _session.GetTrainer(trainerId).Level
+                >= GameBalance.Battles.MinTrainerLevelToRevealNextBattle;
+            slot.SetEarned(earned, typeKey);
+            slot.TooltipText = CollectionsTooltipFormatter.FormatBadge(slot.Definition, _session.State);
         }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Ascendex.Game.Content;
 
 namespace Ascendex.Game;
@@ -137,6 +138,58 @@ public static class TrainingSimulator
         session.NotifySpeciesLevelChanged(progress.SpeciesRootName);
     }
 
+    public static IReadOnlyDictionary<string, int> ComputeLifetimeTypeContributions(
+        string speciesRootName,
+        EvolutionStage[]? chain,
+        int level,
+        bool isVisible)
+    {
+        if (level < 1 || !isVisible)
+        {
+            return new Dictionary<string, int>();
+        }
+
+        var totals = new Dictionary<string, int>();
+        var simulatedLevel = 0;
+        for (var step = 0; step < level; step++)
+        {
+            if (chain is { Length: > 0 })
+            {
+                var previousStageIndex = GetActiveStageIndexZeroBased(chain, simulatedLevel);
+                simulatedLevel++;
+                var newStageIndex = GetActiveStageIndexZeroBased(chain, simulatedLevel);
+                if (newStageIndex > previousStageIndex)
+                {
+                    var oldPerLevel = TypeLevelUpLookup.PointsForChainStage(chain.Length, previousStageIndex);
+                    var newPerLevel = TypeLevelUpLookup.PointsForChainStage(chain.Length, newStageIndex);
+                    var oldStage = chain[previousStageIndex];
+                    var newStage = chain[newStageIndex];
+                    ApplyContributions(
+                        totals,
+                        TypeLevelContributionRules.Negate(
+                            TypeLevelContributionRules.SplitTotal(
+                                oldStage.TypeKey,
+                                oldStage.SecondaryTypeKey,
+                                simulatedLevel * oldPerLevel)));
+                    ApplyContributions(
+                        totals,
+                        TypeLevelContributionRules.SplitTotal(
+                            newStage.TypeKey,
+                            newStage.SecondaryTypeKey,
+                            simulatedLevel * newPerLevel));
+                }
+            }
+            else
+            {
+                simulatedLevel++;
+            }
+
+            ApplyContributions(totals, GetContributionsForLevel(speciesRootName, chain, simulatedLevel));
+        }
+
+        return totals;
+    }
+
     public static void RecordTypeContributionsForCurrentStage(
         GameSession session,
         SpeciesProgress progress,
@@ -147,27 +200,43 @@ public static class TrainingSimulator
             return;
         }
 
-        var chain = config.EvolutionChain;
+        session.RecordTypeLevelContributions(
+            GetContributionsForLevel(progress.SpeciesRootName, config.EvolutionChain, progress.Level));
+    }
+
+    private static TypeLevelContribution[] GetContributionsForLevel(
+        string speciesRootName,
+        EvolutionStage[]? chain,
+        int level)
+    {
         var chainLength = chain?.Length ?? 1;
         var stageIndex = chain is { Length: > 0 }
-            ? GetActiveStageIndexZeroBased(chain, progress.Level)
+            ? GetActiveStageIndexZeroBased(chain, level)
             : 0;
         var totalPoints = TypeLevelUpLookup.PointsForChainStage(chainLength, stageIndex);
 
         string primary;
         string? secondary;
-        if (TryGetResolvedEvolutionStage(chain, progress.Level, out var resolved))
+        if (TryGetResolvedEvolutionStage(chain, level, out var resolved))
         {
             primary = resolved.TypeKey;
             secondary = resolved.SecondaryTypeKey;
         }
         else
         {
-            primary = KantoSpeciesCatalog.PrimaryTypeKey(progress.SpeciesRootName);
+            primary = KantoSpeciesCatalog.PrimaryTypeKey(speciesRootName);
             secondary = null;
         }
 
-        session.RecordTypeLevelContributions(TypeLevelContributionRules.SplitTotal(primary, secondary, totalPoints));
+        return TypeLevelContributionRules.SplitTotal(primary, secondary, totalPoints);
+    }
+
+    private static void ApplyContributions(Dictionary<string, int> totals, TypeLevelContribution[] contributions)
+    {
+        foreach (var contribution in contributions)
+        {
+            totals[contribution.TypeKey] = totals.GetValueOrDefault(contribution.TypeKey) + contribution.Points;
+        }
     }
 
     public static bool TryGetResolvedEvolutionStage(EvolutionStage[]? chain, int level, out EvolutionStage stage)
