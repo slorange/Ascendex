@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using Ascendex.Game.Content;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.Input;
 
@@ -13,120 +14,11 @@ public class MainViewModel : ViewModelBase
     private static readonly IBrush MainTabSelectedBrush = Brush.Parse(MagicNumbersUI.Tabs.MainTabSelectedBackground);
     private static readonly IBrush MainTabUnselectedBrush = Brush.Parse(MagicNumbersUI.Tabs.MainTabUnselectedBackground);
 
-    private static readonly bool UsePrimaryTypeBarColors = false;
-
-    private static readonly IReadOnlyDictionary<string, PokemonBarPalette> TypeBarPalettes =
-        new Dictionary<string, PokemonBarPalette>
-        {
-            ["normal"] = new("#B9B1A0", "#1E1A14"),
-            ["fighting"] = new("#C95B49", "#FFF4F0"),
-            ["flying"] = new("#8FA6F2", "#0F1430"),
-            ["poison"] = new("#A668C7", "#FFF5FF"),
-            ["ground"] = new("#D0B05C", "#241904"),
-            ["rock"] = new("#B89F52", "#211807"),
-            ["bug"] = new("#99B63B", "#152006"),
-            ["ghost"] = new("#6E5AAE", "#F7F4FF"),
-            ["fire"] = new("#E6823D", "#281003"),
-            ["water"] = new("#5D8FE8", "#F4F8FF"),
-            ["grass"] = new("#5FB85B", "#081807"),
-            ["electric"] = new("#E7C63A", "#261E00"),
-            ["psychic"] = new("#E96C9B", "#2A0713"),
-            ["ice"] = new("#7FD6D8", "#082022"),
-            ["dragon"] = new("#6D6AE6", "#F4F5FF"),
-            ["fairy"] = new("#E5A5D3", "#2B1020")
-        };
-
-    private static readonly IReadOnlyDictionary<string, PokemonBarPalette> PokemonBarPalettes =
-        new Dictionary<string, PokemonBarPalette>
-        {
-            ["Bulbasaur"] = new("#78C86A", "#10210C"),
-            ["Charmander"] = new("#E78A43", "#2B1202"),
-            ["Squirtle"] = new("#73B9F2", "#071C2A"),
-            ["Pikachu"] = new("#F3D44F", "#2B2400"),
-            ["Eevee"] = new("#C9A27A", "#24150A"),
-            ["Vaporeon"] = new("#6890F0", "#0C1830"),
-            ["Flareon"] = new("#F87050", "#2A0C08"),
-            ["Jolteon"] = new("#F8E030", "#262004"),
-            ["Pidgey"] = new("#D8C3A2", "#20150B"),
-            ["Rattata"] = new("#B98AD3", "#130819"),
-            ["Spearow"] = new("#C68A58", "#201109"),
-            ["Nidoran(f)"] = new("#6CC6F8", "#06121A"),
-            ["Nidoran(m)"] = new("#B98AD3", "#170A1E"),
-            ["Mankey"] = new("#D7C1AE", "#1D1106"),
-            ["Caterpie"] = new("#91D469", "#102009"),
-            ["Weedle"] = new("#D5A14D", "#241304"),
-            ["Ekans"] = new("#8B63B7", "#15091F"),
-            ["Sandshrew"] = new("#D6B46E", "#241908"),
-            ["Jigglypuff"] = new("#F0A9D6", "#2B1020"),
-            ["Magikarp"] = new("#E36B4E", "#2A0C05"),
-            ["Clefairy"] = new("#F4B8DE", "#2A1020"),
-            ["Zubat"] = new("#6F74C9", "#F3F4FF"),
-            ["Paras"] = new("#D4744B", "#2B1207"),
-            ["Oddish"] = new("#4F85D1", "#07192B"),
-            ["Bellsprout"] = new("#A6D45C", "#102106"),
-            ["Venonat"] = new("#A267BE", "#16091F"),
-            ["Abra"] = new("#E4C559", "#2A2106"),
-            ["Vulpix"] = new("#F3B16A", "#2A1404"),
-            ["Meowth"] = new("#DCC584", "#241A08"),
-            ["Growlithe"] = new("#E88B49", "#2B1102"),
-            ["Psyduck"] = new("#F1D25A", "#2A2103"),
-            ["Poliwag"] = new("#7C9BE8", "#09122B"),
-            ["Goldeen"] = new("#F39A74", "#2B1207"),
-            ["Machop"] = new("#8BA4C8", "#0B1320"),
-            ["Geodude"] = new("#A68D63", "#211708"),
-            ["Onix"] = new("#9CA8A8", "#0E1416"),
-            ["Gastly"] = new("#7B6AD0", "#F4F3FF"),
-            ["Cubone"] = new("#C7AF8F", "#21180B"),
-            ["Scyther"] = new("#78D0A0", "#0C2014"),
-            ["Pinsir"] = new("#904830", "#1C0C06"),
-            ["Porygon"] = new("#E898D0", "#2A1020"),
-            ["Dratini"] = new("#8C85EE", "#0E1030"),
-            ["Diglett"] = new("#A46855", "#210E08"),
-            ["Farfetch'd"] = new("#C8A878", "#24180A"),
-            ["Drowzee"] = new("#E1C95B", "#271F05"),
-            ["Mr. Mime"] = new("#F09CC3", "#2B0C19"),
-            ["Hitmonlee"] = new("#B87860", "#1C1008"),
-            ["Hitmonchan"] = new("#E05050", "#2A0808"),
-            ["Lapras"] = new("#88C8E8", "#08222C"),
-            ["Ponyta"] = new("#F28C54", "#2A1103"),
-            ["Doduo"] = new("#C9A067", "#211407"),
-            ["Tentacool"] = new("#68C8E8", "#062020"),
-            ["Slowpoke"] = new("#E8A8BC", "#2A1020"),
-            ["Horsea"] = new("#5A8FE5", "#071A2A"),
-            ["Staryu"] = new("#C48E4D", "#241507"),
-            ["Exeggcute"] = new("#F0B5D2", "#2A0F1D"),
-            ["Rhyhorn"] = new("#908878", "#1C1612"),
-            ["Tauros"] = new("#B08058", "#1C1008"),
-            ["Lickitung"] = new("#F0B8D0", "#2A1018"),
-            ["Chansey"] = new("#FFE8F0", "#3A1824"),
-            ["Tangela"] = new("#5078D8", "#0A1028"),
-            ["Kangaskhan"] = new("#D0A880", "#24180C"),
-            ["Magnemite"] = new("#A8B4C4", "#0C1018"),
-            ["Voltorb"] = new("#E65B5B", "#2A0808"),
-            ["Electabuzz"] = new("#F0DC40", "#1A1604"),
-            ["Seel"] = new("#D7EEF8", "#0C1C22"),
-            ["Shellder"] = new("#7766C8", "#F4F3FF"),
-            ["Krabby"] = new("#E86040", "#1C0804"),
-            ["Jynx"] = new("#C86898", "#1C0818"),
-            ["Omanyte"] = new("#7A92D6", "#09142A"),
-            ["Kabuto"] = new("#8A7363", "#1E120C"),
-            ["Aerodactyl"] = new("#B898D0", "#181020"),
-            ["Koffing"] = new("#9162B2", "#14091C"),
-            ["Magmar"] = new("#F07040", "#281008"),
-            ["Ditto"] = new("#E8C0E8", "#301828"),
-            ["Grimer"] = new("#7A5C97", "#F7F4FF"),
-            ["Snorlax"] = new("#2E4A6E", "#E8F0F8"),
-            ["Zapdos"] = new("#F8D030", "#2A2000"),
-            ["Articuno"] = new("#78D8F8", "#082028"),
-            ["Moltres"] = new("#F87830", "#2A1000"),
-            ["Mewtwo"] = new("#A070C8", "#180820")
-        };
-
     private readonly List<PokemonTrainingBarViewModel> _allPokemonBars;
     private readonly List<PokemonTrainingBarViewModel> _allBattleBars;
     private readonly Dictionary<string, TypeCounterViewModel> _typeCountersByKey;
-    private Dictionary<string, AreaSelectionViewModel> _areasByDisplayName = null!;
-    private Dictionary<string, PokemonTrainingBarViewModel> _trainersByName = null!;
+    private Dictionary<string, AreaSelectionViewModel> _areasByRouteId = null!;
+    private Dictionary<string, PokemonTrainingBarViewModel> _trainersById = null!;
     private PokemonTrainingBarViewModel? _celadonFlareonBar;
     private PokemonTrainingBarViewModel? _celadonJolteonBar;
     private bool _celadonAlternateEeveelutionsUnlocked;
@@ -144,26 +36,8 @@ public class MainViewModel : ViewModelBase
         SelectBattlesTabCommand = new RelayCommand(() => SelectedMainTab = 1);
         SelectCollectionsTabCommand = new RelayCommand(() => SelectedMainTab = 2);
 
-        TypeCounters =
-            new ObservableCollection<TypeCounterViewModel>
-            {
-                new("normal"),
-                new("fighting"),
-                new("flying"),
-                new("poison"),
-                new("ground"),
-                new("rock"),
-                new("bug"),
-                new("ghost"),
-                new("fire"),
-                new("water"),
-                new("grass"),
-                new("electric"),
-                new("psychic"),
-                new("ice"),
-                new("dragon"),
-                new("fairy"),
-            };
+        TypeCounters = new ObservableCollection<TypeCounterViewModel>(
+            TypeCatalog.CounterTypeKeys.Select(key => new TypeCounterViewModel(key)));
 
         _typeCountersByKey = new Dictionary<string, TypeCounterViewModel>();
         foreach (var counter in TypeCounters)
@@ -177,187 +51,7 @@ public class MainViewModel : ViewModelBase
         _allPokemonBars = new List<PokemonTrainingBarViewModel>();
         _allBattleBars = new List<PokemonTrainingBarViewModel>();
 
-        AddArea(
-            "PT",
-            "Pallet Town",
-            CreatePokemon("Bulbasaur", "grass"),
-            CreatePokemon("Charmander", "fire"),
-            CreatePokemon("Squirtle", "water"),
-            CreatePokemon("Pikachu", "electric"));
-
-        AddArea(
-            "R1",
-            "Route 1",
-            CreatePokemon("Pidgey", "flying"),
-            CreatePokemon("Rattata", "normal"));
-
-        AddArea(
-            "R22",
-            "Route 22",
-            CreatePokemon("Spearow", "flying"),
-            CreatePokemon("Nidoran(f)", "poison"),
-            CreatePokemon("Nidoran(m)", "poison"),
-            CreatePokemon("Mankey", "fighting"));
-
-        AddArea(
-            "VF",
-            "Viridian Forest",
-            CreatePokemon("Caterpie", "bug"),
-            CreatePokemon("Weedle", "bug"));
-
-        AddArea(
-            "R3",
-            "Route 3",
-            CreatePokemon("Ekans", "poison"),
-            CreatePokemon("Sandshrew", "ground"),
-            CreatePokemon("Jigglypuff", "fairy"),
-            CreatePokemon("Magikarp", "water"));
-
-        AddArea(
-            "MM",
-            "Mt Moon",
-            CreatePokemon("Clefairy", "fairy"),
-            CreatePokemon("Zubat", "flying"),
-            CreatePokemon("Paras", "bug"));
-
-        AddArea(
-            "R24",
-            "Route 24",
-            CreatePokemon("Oddish", "grass"),
-            CreatePokemon("Bellsprout", "grass"),
-            CreatePokemon("Venonat", "bug"),
-            CreatePokemon("Abra", "psychic"));
-
-        AddArea(
-            "R7",
-            "Route 7",
-            CreatePokemon("Vulpix", "fire"),
-            CreatePokemon("Meowth", "normal"),
-            CreatePokemon("Growlithe", "fire"));
-
-        AddArea(
-            "GR",
-            "Good Rod",
-            CreatePokemon("Psyduck", "water"),
-            CreatePokemon("Poliwag", "water"),
-            CreatePokemon("Goldeen", "water"));
-
-        AddArea(
-            "RX",
-            "Route X",
-            CreatePokemon("Diglett", "ground"),
-            CreatePokemon("Farfetch'd", "flying"),
-            CreatePokemon("Drowzee", "psychic"),
-            CreatePokemon("Mr. Mime", "psychic"));
-
-        AddArea(
-            "RT",
-            "Rock Tunnel",
-            CreatePokemon("Machop", "fighting"),
-            CreatePokemon("Geodude", "rock"),
-            CreatePokemon("Onix", "rock"));
-
-        AddArea(
-            "TWR",
-            "Pokemon Tower",
-            CreatePokemon("Gastly", "ghost"),
-            CreatePokemon("Cubone", "ground"));
-
-        _celadonFlareonBar = CreatePokemon("Flareon", "fire", allowsCatching: false);
-        _celadonJolteonBar = CreatePokemon("Jolteon", "electric", allowsCatching: false);
-        _celadonFlareonBar.IsVisible = false;
-        _celadonJolteonBar.IsVisible = false;
-
-        AddArea(
-            "GC",
-            "Celadon",
-            CreatePokemon("Porygon", "normal"),
-            CreatePokemon("Dratini", "dragon"),
-            CreatePokemon("Eevee", "normal"),
-            _celadonFlareonBar,
-            _celadonJolteonBar);
-
-        AddArea(
-            "CR",
-            "Cycling Road",
-            CreatePokemon("Ponyta", "fire"),
-            CreatePokemon("Doduo", "flying"),
-            CreateBossPokemon("Snorlax", "normal"));
-
-        AddArea(
-            "SZ1",
-            "Safari Zone 1",
-            CreatePokemon("Exeggcute", "grass"),
-            CreatePokemon("Rhyhorn", "ground"),
-            CreatePokemon("Tauros", "normal"),
-            CreatePokemon("Scyther", "bug"),
-            CreatePokemon("Pinsir", "bug"));
-
-        AddArea(
-            "SZ2",
-            "Safari Zone 2",
-            CreatePokemon("Lickitung", "normal"),
-            CreatePokemon("Chansey", "normal"),
-            CreatePokemon("Tangela", "grass"),
-            CreatePokemon("Kangaskhan", "normal"));
-
-        AddArea(
-            "SR",
-            "Super Rod",
-            CreatePokemon("Tentacool", "water"),
-            CreatePokemon("Slowpoke", "water"),
-            CreatePokemon("Horsea", "water"),
-            CreatePokemon("Staryu", "water"));
-
-        AddArea(
-            "SC",
-            "Saffron City",
-            CreatePokemon("Hitmonlee", "fighting"),
-            CreatePokemon("Hitmonchan", "fighting"),
-            CreatePokemon("Lapras", "ice"));
-
-        AddArea(
-            "PP",
-            "Power Plant",
-            CreatePokemon("Magnemite", "electric"),
-            CreatePokemon("Voltorb", "electric"),
-            CreatePokemon("Electabuzz", "electric"),
-            CreateBossPokemon("Zapdos", "electric"));
-
-        AddArea(
-            "SFI",
-            "Seafoam Islands",
-            CreatePokemon("Seel", "water"),
-            CreatePokemon("Shellder", "water"),
-            CreatePokemon("Krabby", "water"),
-            CreatePokemon("Jynx", "ice"),
-            CreateBossPokemon("Articuno", "ice"));
-
-        AddArea(
-            "PM",
-            "Pokemon Mansion",
-            CreatePokemon("Koffing", "poison"),
-            CreatePokemon("Magmar", "fire"),
-            CreatePokemon("Ditto", "normal"),
-            CreatePokemon("Grimer", "poison"));
-
-        AddArea(
-            "LAB",
-            "Pokemon Lab Cinnabar",
-            CreatePokemon("Omanyte", "rock"),
-            CreatePokemon("Kabuto", "rock"),
-            CreatePokemon("Aerodactyl", "rock"));
-
-        AddArea(
-            "VR",
-            "Victory Road",
-            CreateBossPokemon("Moltres", "fire"));
-
-        AddArea(
-            "CC",
-            "Cerulean Cave",
-            CreateBossPokemon("Mewtwo", "psychic"));
-
+        InitializeRoutes();
         InitializeBattles();
         BuildProgressionLookups();
         UpdateProgressionVisibility();
@@ -443,7 +137,38 @@ public class MainViewModel : ViewModelBase
         private set => SetProperty(ref _selectedAreaIndex, value);
     }
 
+    private void InitializeRoutes()
+    {
+        foreach (var route in KantoRouteCatalog.All)
+        {
+            var bars = new List<PokemonTrainingBarViewModel>();
+            foreach (var spawn in route.Spawns)
+            {
+                var catchMultiplier = spawn.IsBoss ? GameBalance.Routes.BossCatchDifficultyMultiplier : 1.0;
+                var bar = CreatePokemon(spawn.SpeciesRootName, catchDifficultyMultiplier: catchMultiplier, allowsCatching: spawn.AllowsCatching);
+                if (spawn.StartsHidden)
+                {
+                    bar.IsVisible = false;
+                }
+
+                if (spawn.SpeciesRootName == "Flareon")
+                {
+                    _celadonFlareonBar = bar;
+                }
+                else if (spawn.SpeciesRootName == "Jolteon")
+                {
+                    _celadonJolteonBar = bar;
+                }
+
+                bars.Add(bar);
+            }
+
+            AddArea(route.Id, route.ShortLabel, route.DisplayName, bars.ToArray());
+        }
+    }
+
     private void AddArea(
+        string routeId,
         string shortLabel,
         string displayName,
         params PokemonTrainingBarViewModel[] pokemonBars)
@@ -453,21 +178,21 @@ public class MainViewModel : ViewModelBase
             _allPokemonBars.Add(pokemonBar);
         }
 
-        AreaSelectors.Add(new AreaSelectionViewModel(shortLabel, displayName, pokemonBars, SelectArea));
+        AreaSelectors.Add(new AreaSelectionViewModel(routeId, shortLabel, displayName, pokemonBars, SelectArea));
     }
 
     private PokemonTrainingBarViewModel CreatePokemon(
-        string name,
-        string typeKey,
+        string speciesRootName,
         double progressRequired = GameBalance.Training.DefaultBaseProgressRequired,
         double catchDifficultyMultiplier = 1.0,
         bool allowsCatching = true)
     {
-        var palette = ResolveBarPalette(name, typeKey);
-        var evolutionChain = PokemonEvolutionData.TryGetChain(name);
+        var typeKey = KantoSpeciesCatalog.PrimaryTypeKey(speciesRootName);
+        var palette = KantoSpeciesCatalog.ResolveRouteBarPalette(speciesRootName);
+        var evolutionChain = KantoSpeciesCatalog.TryGetEvolutionChain(speciesRootName);
 
         return new PokemonTrainingBarViewModel(
-            name,
+            speciesRootName,
             typeKey,
             palette.AccentColor,
             palette.ForegroundColor,
@@ -484,9 +209,6 @@ public class MainViewModel : ViewModelBase
             catchDifficultyMultiplier: catchDifficultyMultiplier);
     }
 
-    private PokemonTrainingBarViewModel CreateBossPokemon(string name, string typeKey) =>
-        CreatePokemon(name, typeKey, catchDifficultyMultiplier: GameBalance.Routes.BossCatchDifficultyMultiplier);
-
     private bool QualifiesForFirstCatchSpeedBonus() =>
         !_allPokemonBars.Any(b => b.Level >= GameBalance.Routes.MinPokemonLevelToPassRoute);
 
@@ -501,7 +223,7 @@ public class MainViewModel : ViewModelBase
             return;
         }
 
-        var chain = PokemonEvolutionData.TryGetChain("Eevee");
+        var chain = KantoSpeciesCatalog.TryGetEvolutionChain("Eevee");
         if (chain is not { Length: >= 2 })
         {
             return;
@@ -517,21 +239,6 @@ public class MainViewModel : ViewModelBase
         _celadonJolteonBar.IsVisible = true;
         _celadonFlareonBar.GrantAtLevel(25);
         _celadonJolteonBar.GrantAtLevel(25);
-    }
-
-    private static PokemonBarPalette ResolveBarPalette(string name, string typeKey)
-    {
-        if (UsePrimaryTypeBarColors)
-        {
-            return TypeBarPalettes[typeKey];
-        }
-
-        if (PokemonBarPalettes.TryGetValue(name, out var pokemonPalette))
-        {
-            return pokemonPalette;
-        }
-
-        return TypeBarPalettes[typeKey];
     }
 
     private void SelectArea(AreaSelectionViewModel selectedArea)
@@ -616,36 +323,18 @@ public class MainViewModel : ViewModelBase
 
     private void InitializeBattles()
     {
-        var lineup = new (string Name, string TypeKey)[]
+        for (var i = 0; i < KantoTrainerCatalog.All.Length; i++)
         {
-            ("Brock", "rock"),
-            ("Misty", "water"),
-            ("Lt. Surge", "electric"),
-            ("Erika", "grass"),
-            ("Koga", "poison"),
-            ("Sabrina", "psychic"),
-            ("Blaine", "fire"),
-            ("Giovanni", "ground"),
-            ("Lorelei", "ice"),
-            ("Bruno", "fighting"),
-            ("Agatha", "ghost"),
-            ("Lance", "dragon"),
-            ("Blue", "normal"),
-        };
-
-        for (var i = 0; i < lineup.Length; i++)
-        {
-            var (name, typeKey) = lineup[i];
+            var trainer = KantoTrainerCatalog.All[i];
             var baseRequired = ComputeBattleBaseProgressRequired(i + 1);
-            AddBattle(name, typeKey, baseRequired);
+            AddBattle(trainer.Id, trainer.DisplayName, trainer.TypeKey, baseRequired);
         }
-
     }
 
     private void BuildProgressionLookups()
     {
-        _areasByDisplayName = AreaSelectors.ToDictionary(a => a.DisplayName);
-        _trainersByName = _allBattleBars.ToDictionary(b => b.Name);
+        _areasByRouteId = AreaSelectors.ToDictionary(a => a.RouteId);
+        _trainersById = _allBattleBars.ToDictionary(b => b.TrainerId!);
     }
 
     /// <summary>Later trainers need more progress per cycle (each bar still scales further with <see cref="PokemonTrainingBarViewModel.ProgressRequired"/> by level).</summary>
@@ -655,20 +344,21 @@ public class MainViewModel : ViewModelBase
             * Math.Pow(GameBalance.Battles.PerTrainerDifficultyStep, battleOrderOneBased - 1);
     }
 
-    private void AddBattle(string name, string typeKey, double progressRequired)
+    private void AddBattle(string trainerId, string displayName, string typeKey, double progressRequired)
     {
-        var palette = ResolveBarPalette(name, typeKey);
+        var palette = KantoSpeciesCatalog.ResolveTrainerBarPalette(typeKey);
         var bar = new PokemonTrainingBarViewModel(
-            name,
+            displayName,
             typeKey,
             palette.AccentColor,
             palette.ForegroundColor,
             ToggleBattleTraining,
             OnBattleLevelChanged,
-            static (TypeLevelContribution[] _) => { },
+            static (Game.TypeLevelContribution[] _) => { },
             progressRequired,
             GameBalance.Battles.BattleProgressRequiredPerLevelExponent,
-            getTrainingProgressMultiplier: GetBattleSpeedFromTypeLevels);
+            getTrainingProgressMultiplier: GetBattleSpeedFromTypeLevels,
+            trainerId: trainerId);
         _allBattleBars.Add(bar);
         BattleBars.Add(bar);
     }
@@ -794,7 +484,7 @@ public class MainViewModel : ViewModelBase
         return weights[trainerIndexZeroBased];
     }
 
-    private void RecordTypeLevelContributions(TypeLevelContribution[] contributions)
+    private void RecordTypeLevelContributions(Game.TypeLevelContribution[] contributions)
     {
         var any = false;
         foreach (var c in contributions)
@@ -848,7 +538,7 @@ public class MainViewModel : ViewModelBase
         }
     }
 
-    private bool ProgressionLookupsReady => _areasByDisplayName is not null && _trainersByName is not null;
+    private bool ProgressionLookupsReady => _areasByRouteId is not null && _trainersById is not null;
 
     private void UpdateProgressionVisibility()
     {
@@ -857,34 +547,34 @@ public class MainViewModel : ViewModelBase
             return;
         }
 
-        for (var i = 0; i < GameProgression.Order.Length; i++)
+        for (var i = 0; i < KantoProgressionCatalog.Order.Length; i++)
         {
-            var unlocked = i == 0 || IsProgressionStepComplete(GameProgression.Order[i - 1]);
-            var step = GameProgression.Order[i];
+            var unlocked = i == 0 || IsProgressionStepComplete(KantoProgressionCatalog.Order[i - 1]);
+            var step = KantoProgressionCatalog.Order[i];
 
-            if (step.Kind == ProgressionEntryKind.Route)
+            if (step.Kind == ProgressionStepKind.Route)
             {
-                if (_areasByDisplayName.TryGetValue(step.Key, out var area))
+                if (_areasByRouteId.TryGetValue(step.TargetId, out var area))
                 {
                     area.IsVisible = unlocked;
                 }
             }
-            else if (_trainersByName.TryGetValue(step.Key, out var trainer))
+            else if (_trainersById.TryGetValue(step.TargetId, out var trainer))
             {
                 trainer.IsVisible = unlocked;
             }
         }
 
-        foreach (var (routeKey, unlockWhen) in GameProgression.OptionalRouteUnlocks)
+        foreach (var optional in KantoProgressionCatalog.OptionalRouteUnlocks)
         {
-            if (_areasByDisplayName.TryGetValue(routeKey, out var area))
+            if (_areasByRouteId.TryGetValue(optional.RouteId, out var area))
             {
-                area.IsVisible = IsProgressionStepComplete(unlockWhen);
+                area.IsVisible = IsProgressionStepComplete(optional.UnlockWhen);
             }
         }
     }
 
-    private bool IsProgressionStepComplete(ProgressionEntry step)
+    private bool IsProgressionStepComplete(ProgressionStep step)
     {
         if (!ProgressionLookupsReady)
         {
@@ -893,18 +583,18 @@ public class MainViewModel : ViewModelBase
 
         return step.Kind switch
         {
-            ProgressionEntryKind.Route => _areasByDisplayName.TryGetValue(step.Key, out var area)
+            ProgressionStepKind.Route => _areasByRouteId.TryGetValue(step.TargetId, out var area)
                 && area.PokemonBars.Any(p => p.Level >= GameBalance.Routes.MinPokemonLevelToPassRoute),
-            ProgressionEntryKind.Trainer => _trainersByName.TryGetValue(step.Key, out var trainer)
+            ProgressionStepKind.Trainer => _trainersById.TryGetValue(step.TargetId, out var trainer)
                 && trainer.Level >= GameBalance.Battles.MinTrainerLevelToRevealNextBattle,
-            _ => false
+            _ => false,
         };
     }
 
     private void InitializePokedex()
     {
         PokedexCells.Clear();
-        for (var i = 0; i < PokedexKantoOneFifty.CellCount; i++)
+        for (var i = 0; i < KantoSpeciesCatalog.NationalDexCellCount; i++)
         {
             PokedexCells.Add(new PokedexCellViewModel());
         }
@@ -927,7 +617,7 @@ public class MainViewModel : ViewModelBase
                 continue;
             }
 
-            var chain = PokemonEvolutionData.TryGetChain(bar.SpeciesLineRoot);
+            var chain = KantoSpeciesCatalog.TryGetEvolutionChain(bar.SpeciesLineRoot);
             if (chain is { Length: > 0 })
             {
                 foreach (var stage in chain)
@@ -937,18 +627,16 @@ public class MainViewModel : ViewModelBase
                         continue;
                     }
 
-                    if (PokedexKantoOneFifty.CellIndexBySpeciesName.TryGetValue(stage.Name, out var idx))
+                    if (KantoSpeciesCatalog.CellIndexBySpeciesName.TryGetValue(stage.Name, out var idx))
                     {
-                        PokedexCells[idx].FillBrush = PokemonTypeBrushes.AccentBrushForTypeKey(stage.TypeKey);
+                        PokedexCells[idx].FillBrush = Brush.Parse(TypeCatalog.AccentHexForTypeKey(stage.TypeKey));
                     }
                 }
             }
-            else if (PokedexKantoOneFifty.CellIndexBySpeciesName.TryGetValue(bar.Name, out var idx))
+            else if (KantoSpeciesCatalog.CellIndexBySpeciesName.TryGetValue(bar.Name, out var idx))
             {
-                PokedexCells[idx].FillBrush = PokemonTypeBrushes.AccentBrushForTypeKey(bar.TypeKey);
+                PokedexCells[idx].FillBrush = Brush.Parse(TypeCatalog.AccentHexForTypeKey(bar.TypeKey));
             }
         }
     }
-
-    private readonly record struct PokemonBarPalette(string AccentColor, string ForegroundColor);
 }

@@ -1,265 +1,173 @@
-# Ascendex Game Design Notes
+# Ascendex — Game Design
 
-## High Concept
+Living design doc for the project. **Describes what the build does today**, what we plan to change in code structure next, and ideas on the horizon. Older brainstorming in git history should be treated skeptically if it contradicts the **Current features** section.
 
-`Ascendex` is a Pokemon-themed incremental game for Android inspired by the broad progression feel of `EthosIdle`, but with different design priorities:
+**High concept:** Pokémon-themed incremental game (EthosIdle-style progression lanes) built with Avalonia. Kanto-first scope.
 
-- stronger thematic identity through Pokemon regions, routes, gyms, and the Pokedex
-- clearer progression and unlock rules
-- satisfying idle/incremental growth without unnecessary friction
-- long-term prestige and reset systems tied to Pokemon milestones
+**Design principles**
 
-This document is the working source of truth for early ideas. It is intentionally rough and should evolve as the game becomes more concrete.
+- Theme first — mechanics should feel Pokémon-native, not renamed tech trees.
+- Clarity over obscurity — unlock rules should be understandable in play.
+- Satisfying growth — meaningful gains every few minutes.
+- Scalable systems — today’s prototype should not block regions, prestige, or collections meta later.
 
-## Core Fantasy
+---
 
-The player starts small in `Pallet Town` with basic Pokemon training and gradually grows into a world-spanning trainer who:
+## Current features
 
-- levels Pokemon and catches new ones
-- unlocks new routes, towns, and regions
-- builds teams around type synergies
-- defeats gyms and the Elite Four
-- completes the Pokedex over multiple runs
-- uses resets/prestige to accelerate future progression
+What the app actually does in the current prototype. Balance numbers live in `Ascendex/ViewModels/GameBalance.cs`; UI-only constants in `MagicNumbersUI.cs`.
 
-## Reference Inspiration
+### Platform and shell
 
-Primary inspiration: `EthosIdle`
+- Avalonia UI targeting Desktop, Android, iOS, and Browser.
+- Single `MainViewModel` owns all game state; constructed directly in `App.axaml.cs` (no DI, no save service).
+- Bottom tabs: **Routes**, **Battles**, **Collections**.
 
-Key borrowed idea:
+### Routes tab
 
-- a list of tappable or assignable progression lanes that fill bars over time and level up when full
+- **Areas:** 22 Kanto locations (Pallet Town through Cerulean Cave), selected via a horizontal strip of short labels (PT, R1, VF, …).
+- **Progress bars:** One bar per catchable/trainable species in the current area. Tap a bar to activate it.
+- **Progress model:** Timer-driven fill (~16 ms tick). When the bar fills, the species gains a level and the bar resets. Required progress scales with level (`GameBalance.Training`).
+- **Catch vs train:** Uncaught species (level 0) use a separate, slower catch fill (`GameBalance.Routes.CatchSpeedMultiplier`). After level 1, the same bar is used for training. First catch in the run gets a large catch-speed bonus.
+- **Concurrency:** Only one route bar may be catching and only one may be training at a time (global, not per area).
+- **Evolution:** Species with evolution data change name, primary type, and bar colors at level thresholds. Evolution is automatic when the bar level crosses a stage threshold — not player choice.
+- **Route unlock:** Linear world order in `KantoProgressionCatalog.Order`. A route step completes when **any** species in that area reaches level ≥ 1 (`GameBalance.Routes.MinPokemonLevelToPassRoute`). Trainer steps complete when that trainer’s battle bar reaches level ≥ 1. Victory Road unlocks optionally after Giovanni.
+- **Boss species:** Some routes use a harder catch multiplier (legendaries, Snorlax, etc.); training speed is unchanged.
+- **Type counters:** Sixteen types shown at the bottom of the Routes tab. Route level-ups grant type points; dual typings split points between primary and secondary type keys in evolution data. Counter totals speed up battle bar fill.
+- **Cross-mode bonus:** Clearing gym / Elite Four battle bars (their level = number of clears) speeds up route training; a fraction of that bonus applies to catch speed.
 
-Key changes desired:
+### Battles tab
 
-- replace abstract civilization techs with Pokemon training, catches, routes, and progression systems
-- make unlock paths feel more thematic and intuitive
-- support longer-term progression through gyms, dex completion, and prestige loops
+- Thirteen trainer bars in order: eight Kanto gyms, Elite Four (Lorelei → Lance), then Blue.
+- Same bar UI as routes, but no catch mode — only repeatable “clear” cycles.
+- Trainers unlock in sync with `KantoProgressionCatalog.Order`.
+- Battle difficulty scales per trainer index (`GameBalance.Battles`).
 
-## First Gameplay Loop
+### Collections tab
 
-The first minutes of play should be simple and readable:
+- **Pokédex grid:** 10 × 15 cells for Kanto national dex #001–#150 (`KantoSpeciesCatalog`).
+- Cells stay black until a matching route species has level ≥ 1; evolved forms light up as stages are reached. Fill color is the species’ **primary** type accent (`TypeCatalog`).
+- No badges, shinies, or per-cell metadata yet — only fill color.
 
-1. Start in `Pallet Town`
-2. Choose or receive a starter Pokemon
-3. Tap the active training target to fill a progress bar
-4. When the bar completes, that Pokemon gains a level
-5. Reaching certain level thresholds unlocks the next area or content
-6. New routes introduce additional catchable Pokemon and progression lanes
+### Static content (today’s pain points)
 
-Early example progression:
+Game content is spread across several large static lists under `ViewModels/`:
 
-- `Pallet Town`
-  - starter Pokemon progression bar
-  - level starter to `5`
-- unlock `Route 1`
-  - catch or train `Pidgey`
-  - catch or train `Rattata`
-- continued progression unlocks the next town, route, or challenge
+| Data | Location |
+|------|----------|
+| Dex order, evolution chains, standalone palettes | `Game/Content/KantoSpeciesCatalog.cs` |
+| Route definitions + spawns | `Game/Content/KantoRouteCatalog.cs` |
+| Trainer lineup | `Game/Content/KantoTrainerCatalog.cs` |
+| Unlock order (stable route/trainer ids) | `Game/Content/KantoProgressionCatalog.cs` |
+| Type colors + counter list | `Game/Content/TypeCatalog.cs` |
+| Balance knobs | `ViewModels/GameBalance.cs` |
 
-## Core Mechanics
+Progression and content are linked by **display name strings** (e.g. `"Route 1"`, `"Brock"`). Typos fail silently.
 
-### 1. Progress Bars
+### Intentional simplifications
 
-Each bar represents a progression lane, such as:
+- **Types:** Only sixteen types are tracked — the set relevant to Kanto content. Steel and Dark are omitted (no pure Steel/Dark species in this scope; Magnemite line uses Electric as primary). Secondary types exist in evolution data for type-point splitting but are not fully modeled elsewhere.
+- **Eevee (Celadon):** Intentional exception. Evolution data covers Eevee → Vaporeon at level 25. Flareon and Jolteon are separate hidden bars that unlock when Eevee reaches that threshold; they are granted at level 25 without a normal catch flow. This is special-case code in `MainViewModel`, not a general branching-evolution system. Future catalog work should leave room for one-off rules like this.
 
-- training a Pokemon
-- catching a Pokemon
-- researching a type bonus
-- preparing for a gym
+### Not implemented
 
-Basic behavior:
+- Save / load (all progress is in memory for the session).
+- Prestige, currency, shop, achievements.
+- Multiple simultaneous training targets.
+- Shiny Pokémon, challenge run modes, additional regions.
 
-- the player taps a lane to focus it early on
-- progress fills over time or per tap
-- when full, the lane gains a level/rank/count
-- leveling a lane increases derived stats or unlocks content
+---
 
-Later upgrades may allow:
+## Planned design update
 
-- multiple active lanes at once
-- automation
-- passive progress while idle
-- strategic assignment of limited training slots
+Near-term **code structure** work — not new player-facing features. Goal: pull game logic and content out of view models, without a big-bang rewrite.
 
-### 2. Unlock Rules
+### Problems we are fixing
 
-A simple early rule is useful:
+1. **Duplicated catalogs** — species names, colors, routes, and progression authored in multiple places; values can drift.
+2. **Game logic in VMs** — `MainViewModel` and `PokemonTrainingBarViewModel` mix simulation, unlock rules, and UI binding.
+3. **No stable state shape** — progress lives on view models wired with callbacks; hard to test or serialize later.
 
-- when a Pokemon or lane reaches a target value, the next location or lane unlocks
+### Target layering (incremental)
 
-Examples:
+```
+Content/     read-only catalogs (species, routes, trainers, progression, types)
+Game/        rules + runtime state (when introduced)
+ViewModels/  thin bindings to state
+Views/       Avalonia UI
+```
 
-- starter reaches level `5` -> unlock `Route 1`
-- a route's core Pokemon reach level `10` -> unlock next tier/location
-- clearing a gym -> unlock next badge tier and new mechanics
+Keep `GameBalance` and `MagicNumbersUI` as the homes for tunable numbers and presentation constants (may move folders later).
 
-### 3. Stats and Bonuses
+### Refactor phases (small steps)
 
-Pokemon, locations, and upgrades can feed into global stats.
+Do these in order; each step should keep the game playable.
 
-Possible stat categories:
+**Step 1 — Content catalogs (next code change)**  
+Consolidate static lists into `Ascendex/Game/Content/` (or similar):
 
-- training speed
-- catch chance
-- type effectiveness bonus
-- money or resource generation
-- experience gain
-- gym preparation speed
-- idle efficiency
+- Single Kanto species table: dex #, name, evolution stages (types + colors), boss/catch flags.
+- Route table: id, labels, spawn list referencing species.
+- Trainer table: id, name, type, order.
+- Progression graph: ordered steps with **stable ids**, not display-name dictionary keys.
 
-### 4. Team and Type Systems
+Remove duplicate palette dictionaries from `MainViewModel`. Eevee’s Celadon behavior stays explicit special-case logic until we need a second exception.
 
-Pokemon should eventually matter beyond just being bars.
+**Step 2 — Separate runtime state from VMs**  
+Introduce plain state objects (e.g. per-species level/progress/activity flags, type counter totals, selected area). View models become projections updated from that state. Enables unit tests on rules without Avalonia.
 
-Planned uses:
+**Step 3 — Move simulation off bar VMs**  
+Relocate tick/level-up/evolution/type-point logic out of `PokemonTrainingBarViewModel` into game-layer types. Exact shape (central tick vs per-entity) can be decided in Step 2; default behavior stays one active catch + one active train.
 
-- type matchups affecting gyms, routes, and bosses
-- team composition bonuses
-- unlocks gated by having enough strength in a given type
-- region or route challenges that reward broader rosters instead of one overleveled favorite
+Steps 2–3 prepare for save/load but **do not require implementing save/load yet**.
 
-## Long-Term Progression
+### Data model sketch (for Step 2+)
 
-### Regions and Route Progression
+Lightweight targets — names flexible:
 
-The world can be structured in layers:
+| Concept | Role |
+|---------|------|
+| `SpeciesId`, `RouteId`, `TrainerId` | Stable keys for catalogs and save data |
+| `SpeciesDefinition` | Dex #, stages, palettes, catch rules |
+| `RouteDefinition` | Spawns, display metadata |
+| `TrainerDefinition` | Type, order, battle pacing inputs |
+| `SpeciesProgress` | Level, progress, catching/training flags |
+| `RunState` | All progress for the current play session / run |
+| `SaveGame` | Versioned `{ run, … }` blob when persistence is added |
 
-- town or city hub
-- nearby route progression
-- gym challenge
-- badge unlock
-- next region segment
+Meta-progression (`MetaState`: badges, prestige, dex ownership bits) waits until a feature needs it — no empty scaffolding required upfront.
 
-This gives a strong Pokemon identity while preserving the incremental tier structure.
+### Out of scope for this refactor pass
 
-### Gyms
+- Save/load implementation  
+- Central tick / offline progress  
+- Multi-training slots  
+- Badges UI, shop, shinies, new regions  
+- Generalizing Eevee into a branching-evolution framework  
 
-Gyms can act as milestone walls and strategic checks.
+---
 
-Possible design:
+## Planned future features
 
-- unlock once route requirements are met
-- require minimum team strength or specific type coverage
-- reward permanent account bonuses, badges, and new progression systems
+Ideas on the horizon — **not scheduled**. Listed so catalog and state design do not paint us into a corner.
 
-### Elite Four
+| Feature | Notes |
+|---------|--------|
+| **Save / load** | Needs versioned `RunState` (and eventually meta state). Blocked on Step 2. |
+| **Badges in Collections** | Track gym/badge completion separately from battle bar level; display in Collections tab. |
+| **Separate catch / train tabs** | UI split; may share one species progress object with two activity modes. |
+| **Prestige / resets** | Run boundary + persistent bonuses; likely triggered post–Elite Four or dex milestones. |
+| **Multi-training** | Replace global single-active-bar rule with configurable training slots. |
+| **Shiny Pokémon** | Per-species or per-instance flags beyond dex fill color. |
+| **Challenge runs** | Run config (e.g. solo type) filtering available content. |
+| **Shop / Pokédollars** | Currency + items; new tab or section. |
+| **Johto, Hoenn, …** | Region catalog, regional dex layout, progression graph per region. |
 
-Beating the Elite Four is a natural prestige trigger.
+When picking up a feature, check whether Step 1–2 are far enough along; most of these extend `RunState` / `MetaState` rather than `MainViewModel` special cases.
 
-Possible rewards:
+---
 
-- reset the current run
-- gain a prestige currency
-- unlock account-wide boosts
-- accelerate early progression on future runs
+## Reference
 
-### Pokedex Completion
-
-The Pokedex is a second long-term meta progression layer.
-
-Possible uses:
-
-- unique completion bonuses
-- unlock rare species
-- provide prestige multipliers
-- encourage diversified runs and route choices
-
-### Achievements
-
-Achievements can reinforce both short-term and long-term goals.
-
-Examples:
-
-- first level `10` Pokemon
-- first gym clear
-- full route completion
-- first prestige
-- catch a full type family
-- complete a regional dex page
-
-## Prestige and Reset Ideas
-
-Potential reset layers:
-
-### Run Reset
-
-- triggered by Elite Four completion
-- grants prestige currency
-- improves future leveling, catch speed, or automation
-
-### Dex Reset / Collection Milestones
-
-- tied to Pokedex completion goals
-- unlocks stronger persistent bonuses
-- encourages full roster growth rather than a single optimal path
-
-### Regional Progression Reset
-
-- later-game option for larger gains and broader replayability
-
-## Early MVP Scope
-
-To keep the first playable version realistic, the MVP should stay narrow.
-
-Suggested MVP:
-
-- Android-first UI
-- one main screen with progression bars
-- `Pallet Town` start
-- one starter Pokemon choice or a single fixed starter
-- starter leveling bar
-- unlock `Route 1` at level `5`
-- `Pidgey` and `Rattata` as additional progression lanes
-- simple passive or tap-based progress
-- save/load local progress
-
-Nice-to-have if still small:
-
-- simple type tags
-- very basic reset
-- first gym placeholder
-
-## Design Principles
-
-These are the instincts behind the project and can guide future choices:
-
-- theme first: mechanics should feel Pokemon-native, not just renamed tech trees
-- clarity over obscurity: unlock rules should be visible and understandable
-- satisfying growth: every few minutes should produce a meaningful gain
-- strategic breadth: many Pokemon should matter, not just one best lane
-- scalable systems: early mechanics should naturally grow into gyms, regions, and prestige
-
-## Open Questions
-
-These need answers before architecture hardens:
-
-- Is progress primarily tap-driven, time-driven, or hybrid?
-- Does the player directly train Pokemon, or assign them to activities?
-- Are catches separate bars from training bars?
-- Do Pokemon evolve automatically at thresholds or through player choice?
-- How many simultaneous active lanes should the player get early vs late?
-- Is combat simulated, abstracted, or mostly represented through progression checks?
-- How closely should the project follow canon region order and Pokemon availability?
-- Will this be portrait-only on Android?
-
-## Next Planning Steps
-
-The next useful docs to create are:
-
-1. a tighter `MVP` spec with exact first-screen behavior
-2. a progression map for `Pallet Town -> Route 1 -> first gym`
-3. a data model sketch for Pokemon, routes, unlocks, and save data
-4. a UI wireframe for the main incremental screen
-
-## Immediate Build Suggestion
-
-The best next implementation step is likely:
-
-- build a single-screen prototype with three bars and one unlock condition
-
-That would let us validate:
-
-- whether the main loop feels good
-- how much tapping vs passive progress is fun
-- whether the Pokemon theme reads clearly in the UI
+- **Inspiration:** EthosIdle-style progression lanes, Pokémon theming.
+- **Code map:** `ViewModels/MainViewModel.cs` (orchestration), `PokemonTrainingBarViewModel.cs` (bar simulation + UI), `Game/Content/*` (catalogs), `GameBalance.cs`.

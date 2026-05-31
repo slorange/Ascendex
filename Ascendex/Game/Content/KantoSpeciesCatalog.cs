@@ -1,62 +1,39 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using Ascendex.Game;
 
-namespace Ascendex.ViewModels;
+namespace Ascendex.Game.Content;
 
-/// <summary>One type counter increment from a route Pokémon level-up.</summary>
-public readonly record struct TypeLevelContribution(string TypeKey, int Points);
-
-/// <summary>
-/// Species display stages by bar level (starts at 0). <see cref="MinLevel"/> is the lowest level at which that form is shown (inclusive).
-/// <see cref="TypeKey"/> is the primary type (bar colors); <see cref="SecondaryTypeKey"/> is optional for dual typings and type counter splits.
-/// The first stage uses MinLevel 0; later stages use the same numeric thresholds as classic Gen 1 RBY levels (e.g. Ivysaur at bar 16).
-/// Stone and trade stand-ins in the data follow those same level numbers.
-/// <see cref="AccentColor"/> / <see cref="ForegroundColor"/> follow recognizable Sugimori-style palettes (not pure type chips).
-/// </summary>
-public readonly record struct EvolutionStage(
-    int MinLevel,
-    string Name,
-    string TypeKey,
-    string AccentColor,
-    string ForegroundColor,
-    string? SecondaryTypeKey = null);
-
-public static class PokemonTypeContribution
+/// <summary>Kanto species data: National Dex order, evolution chains, and single-form bar palettes.</summary>
+public static class KantoSpeciesCatalog
 {
-    /// <summary>Mono-type gets all points; dual-type splits with the remainder on the primary type.</summary>
-    public static TypeLevelContribution[] SplitTotal(string primaryTypeKey, string? secondaryTypeKey, int totalPoints)
-    {
-        if (string.IsNullOrEmpty(secondaryTypeKey))
-        {
-            return [new TypeLevelContribution(primaryTypeKey, totalPoints)];
-        }
+    /// <summary>National Dex species #001–#150 for a 10×15 grid.</summary>
+    public static readonly string[] NationalDexNames =
+    [
+        "Bulbasaur", "Ivysaur", "Venusaur", "Charmander", "Charmeleon", "Charizard", "Squirtle", "Wartortle", "Blastoise", "Caterpie",
+        "Metapod", "Butterfree", "Weedle", "Kakuna", "Beedrill", "Pidgey", "Pidgeotto", "Pidgeot", "Rattata", "Raticate",
+        "Spearow", "Fearow", "Ekans", "Arbok", "Pikachu", "Raichu", "Sandshrew", "Sandslash", "Nidoran(f)", "Nidorina",
+        "Nidoqueen", "Nidoran(m)", "Nidorino", "Nidoking", "Clefairy", "Clefable", "Vulpix", "Ninetales", "Jigglypuff", "Wigglytuff",
+        "Zubat", "Golbat", "Oddish", "Gloom", "Vileplume", "Paras", "Parasect", "Venonat", "Venomoth", "Diglett",
+        "Dugtrio", "Meowth", "Persian", "Psyduck", "Golduck", "Mankey", "Primeape", "Growlithe", "Arcanine", "Poliwag",
+        "Poliwhirl", "Poliwrath", "Abra", "Kadabra", "Alakazam", "Machop", "Machoke", "Machamp", "Bellsprout", "Weepinbell",
+        "Victreebel", "Tentacool", "Tentacruel", "Geodude", "Graveler", "Golem", "Ponyta", "Rapidash", "Slowpoke", "Slowbro",
+        "Magnemite", "Magneton", "Farfetch'd", "Doduo", "Dodrio", "Seel", "Dewgong", "Grimer", "Muk", "Shellder",
+        "Cloyster", "Gastly", "Haunter", "Gengar", "Onix", "Drowzee", "Hypno", "Krabby", "Kingler", "Voltorb",
+        "Electrode", "Exeggcute", "Exeggutor", "Cubone", "Marowak", "Hitmonlee", "Hitmonchan", "Lickitung", "Koffing", "Weezing",
+        "Rhyhorn", "Rhydon", "Chansey", "Tangela", "Kangaskhan", "Horsea", "Seadra", "Goldeen", "Seaking", "Staryu",
+        "Starmie", "Mr. Mime", "Scyther", "Jynx", "Electabuzz", "Magmar", "Pinsir", "Tauros", "Magikarp", "Gyarados",
+        "Lapras", "Ditto", "Eevee", "Vaporeon", "Jolteon", "Flareon", "Porygon", "Omanyte", "Omastar", "Kabuto",
+        "Kabutops", "Aerodactyl", "Snorlax", "Articuno", "Zapdos", "Moltres", "Dratini", "Dragonair", "Dragonite", "Mewtwo",
+    ];
 
-        var primaryShare = (totalPoints + 1) / 2;
-        var secondaryShare = totalPoints / 2;
-        return
-        [
-            new TypeLevelContribution(primaryTypeKey, primaryShare),
-            new TypeLevelContribution(secondaryTypeKey, secondaryShare),
-        ];
-    }
+    public static readonly IReadOnlyDictionary<string, int> CellIndexBySpeciesName =
+        NationalDexNames.Select((name, i) => (name, i)).ToDictionary(t => t.name, t => t.i, StringComparer.Ordinal);
 
-    /// <summary>Same keys as <see cref="SplitTotal"/> but negated points (for reversing a prior split).</summary>
-    public static TypeLevelContribution[] Negate(TypeLevelContribution[] contributions)
-    {
-        var result = new TypeLevelContribution[contributions.Length];
-        for (var i = 0; i < contributions.Length; i++)
-        {
-            var c = contributions[i];
-            result[i] = new TypeLevelContribution(c.TypeKey, -c.Points);
-        }
+    public const int NationalDexCellCount = 150;
 
-        return result;
-    }
-}
-
-/// <summary>Evolution-stage bar colors for route Pokémon. Covers every species in this dictionary (Kanto lines used in Ascendex), not the full 151 National Dex.</summary>
-public static class PokemonEvolutionData
-{
-    private static readonly Dictionary<string, EvolutionStage[]> Chains = new()
+    private static readonly Dictionary<string, EvolutionStage[]> EvolutionChains = new(StringComparer.Ordinal)
     {
         ["Bulbasaur"] =
         [
@@ -346,6 +323,71 @@ public static class PokemonEvolutionData
         ],
     };
 
-    public static EvolutionStage[]? TryGetChain(string rootSpeciesName) =>
-        Chains.TryGetValue(rootSpeciesName, out var stages) ? stages : null;
+    private static readonly Dictionary<string, (string TypeKey, BarPalette Palette)> StandaloneSpecies = new(StringComparer.Ordinal)
+    {
+        ["Flareon"] = ("fire", new BarPalette("#F87050", "#2A0C08")),
+        ["Jolteon"] = ("electric", new BarPalette("#F8E030", "#262004")),
+        ["Onix"] = ("rock", new BarPalette("#9CA8A8", "#0E1416")),
+        ["Scyther"] = ("bug", new BarPalette("#78D0A0", "#0C2014")),
+        ["Pinsir"] = ("bug", new BarPalette("#904830", "#1C0C06")),
+        ["Porygon"] = ("normal", new BarPalette("#E898D0", "#2A1020")),
+        ["Farfetch'd"] = ("normal", new BarPalette("#C8A878", "#24180A")),
+        ["Mr. Mime"] = ("psychic", new BarPalette("#F09CC3", "#2B0C19")),
+        ["Hitmonlee"] = ("fighting", new BarPalette("#B87860", "#1C1008")),
+        ["Hitmonchan"] = ("fighting", new BarPalette("#E05050", "#2A0808")),
+        ["Lapras"] = ("ice", new BarPalette("#88C8E8", "#08222C")),
+        ["Tauros"] = ("normal", new BarPalette("#B08058", "#1C1008")),
+        ["Lickitung"] = ("normal", new BarPalette("#F0B8D0", "#2A1018")),
+        ["Chansey"] = ("normal", new BarPalette("#FFE8F0", "#3A1824")),
+        ["Tangela"] = ("grass", new BarPalette("#5078D8", "#0A1028")),
+        ["Kangaskhan"] = ("normal", new BarPalette("#D0A880", "#24180C")),
+        ["Electabuzz"] = ("electric", new BarPalette("#F0DC40", "#1A1604")),
+        ["Jynx"] = ("ice", new BarPalette("#C86898", "#1C0818")),
+        ["Aerodactyl"] = ("rock", new BarPalette("#B898D0", "#181020")),
+        ["Magmar"] = ("fire", new BarPalette("#F07040", "#281008")),
+        ["Ditto"] = ("normal", new BarPalette("#E8C0E8", "#301828")),
+        ["Snorlax"] = ("normal", new BarPalette("#2E4A6E", "#E8F0F8")),
+        ["Zapdos"] = ("electric", new BarPalette("#F8D030", "#2A2000")),
+        ["Articuno"] = ("ice", new BarPalette("#78D8F8", "#082028")),
+        ["Moltres"] = ("fire", new BarPalette("#F87830", "#2A1000")),
+        ["Mewtwo"] = ("psychic", new BarPalette("#A070C8", "#180820")),
+    };
+
+    public static EvolutionStage[]? TryGetEvolutionChain(string rootSpeciesName) =>
+        EvolutionChains.TryGetValue(rootSpeciesName, out var stages) ? stages : null;
+
+    public static string PrimaryTypeKey(string speciesRootName)
+    {
+        var chain = TryGetEvolutionChain(speciesRootName);
+        if (chain is { Length: > 0 })
+        {
+            return chain[0].TypeKey;
+        }
+
+        if (StandaloneSpecies.TryGetValue(speciesRootName, out var standalone))
+        {
+            return standalone.TypeKey;
+        }
+
+        return "normal";
+    }
+
+    public static BarPalette ResolveRouteBarPalette(string speciesRootName)
+    {
+        var chain = TryGetEvolutionChain(speciesRootName);
+        if (chain is { Length: > 0 })
+        {
+            return new BarPalette(chain[0].AccentColor, chain[0].ForegroundColor);
+        }
+
+        if (StandaloneSpecies.TryGetValue(speciesRootName, out var standalone))
+        {
+            return standalone.Palette;
+        }
+
+        return TypeCatalog.BarPaletteForTypeKey(PrimaryTypeKey(speciesRootName));
+    }
+
+    public static BarPalette ResolveTrainerBarPalette(string typeKey) =>
+        TypeCatalog.BarPaletteForTypeKey(typeKey);
 }

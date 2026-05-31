@@ -16,16 +16,20 @@ public partial class AreaSelectionViewModel : ViewModelBase
     private readonly Action<AreaSelectionViewModel> _selectArea;
 
     public AreaSelectionViewModel(
+        string routeId,
         string shortLabel,
         string displayName,
         IReadOnlyList<PokemonTrainingBarViewModel> pokemonBars,
         Action<AreaSelectionViewModel> selectArea)
     {
+        RouteId = routeId;
         ShortLabel = shortLabel;
         DisplayName = displayName;
         PokemonBars = pokemonBars;
         _selectArea = selectArea;
     }
+
+    public string RouteId { get; }
 
     public string ShortLabel { get; }
 

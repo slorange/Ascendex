@@ -1,4 +1,5 @@
 using System;
+using Ascendex.Game;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -40,8 +41,10 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         bool allowsCatching = false,
         Func<bool>? qualifiesForFirstCatchSpeedBonus = null,
         Func<double>? getCatchProgressMultiplier = null,
-        double catchDifficultyMultiplier = 1.0)
+        double catchDifficultyMultiplier = 1.0,
+        string? trainerId = null)
     {
+        TrainerId = trainerId;
         _recordTypeLevelContributions = recordTypeLevelContributions;
         _recordLevelChanged = recordLevelChanged;
         _toggleTrainingRequested = toggleTrainingRequested;
@@ -97,6 +100,9 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     /// <summary>Route species key for evolution lookup (initial species name); unchanged when the bar evolves.</summary>
     public string SpeciesLineRoot { get; }
+
+    /// <summary>Set for battle trainer bars; used for progression unlock lookups.</summary>
+    public string? TrainerId { get; }
 
     public double BaseProgressRequired { get; }
 
@@ -240,7 +246,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             secondary = null;
         }
 
-        _recordTypeLevelContributions(PokemonTypeContribution.SplitTotal(primary, secondary, totalPoints));
+        _recordTypeLevelContributions(TypeLevelContributionRules.SplitTotal(primary, secondary, totalPoints));
     }
 
     private void ApplyEvolutionStageForCurrentLevel()
@@ -366,9 +372,9 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
                 var newPerLevel = TypeLevelUpLookup.PointsForChainStage(chain.Length, newStageIndex);
                 var oldStage = chain[previousStageIndex];
                 var newStage = chain[newStageIndex];
-                var remove = PokemonTypeContribution.Negate(
-                    PokemonTypeContribution.SplitTotal(oldStage.TypeKey, oldStage.SecondaryTypeKey, Level * oldPerLevel));
-                var add = PokemonTypeContribution.SplitTotal(newStage.TypeKey, newStage.SecondaryTypeKey, Level * newPerLevel);
+                var remove = TypeLevelContributionRules.Negate(
+                    TypeLevelContributionRules.SplitTotal(oldStage.TypeKey, oldStage.SecondaryTypeKey, Level * oldPerLevel));
+                var add = TypeLevelContributionRules.SplitTotal(newStage.TypeKey, newStage.SecondaryTypeKey, Level * newPerLevel);
                 _recordTypeLevelContributions([.. remove, .. add]);
             }
         }

@@ -100,7 +100,7 @@ public static class GameBalance
         public const double RouteTrainingSpeedMultiplierBaseline = 1.0;
 
         /// <summary>
-        /// Route training speed bonus per clear for each battle row, same order as <see cref="GameProgression"/> trainers.
+        /// Route training speed bonus per clear for each battle row, same order as <see cref="KantoTrainerCatalog"/>.
         /// Each trainer's completed cycles (bar level, starting from 0) add this weight to the bonus sum. Extra rows beyond this array use the last entry.
         /// </summary>
         public static readonly double[] RouteTrainingBonusPerClearByTrainerIndex =
