@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Ascendex.Game.Content;
-using Ascendex.ViewModels;
+using Ascendex.Game.Save;
 
 namespace Ascendex.Game;
 
@@ -21,15 +21,105 @@ public sealed class GameSession
 
     public event Action? ProgressionChanged;
 
-    public event Action? CeladonAlternatesUnlocked;
-
     public event Action? ActiveBarsChanged;
+
+    public event Action? BankTimeChanged;
 
     public static GameSession CreateNew()
     {
         var session = new GameSession();
         session.InitializeState();
         return session;
+    }
+
+    public static GameSession CreateFromSave(SaveGameData data)
+    {
+        var session = new GameSession();
+        session.InitializeState();
+        SaveGameMapper.ApplyToRunState(session.State, data);
+
+        if (string.IsNullOrEmpty(session.State.SelectedRouteId))
+        {
+            session.State.SelectedRouteId = RouteIds.PalletTown;
+        }
+
+        session.NotifyActiveBarsChanged();
+        session.RestoreCeladonAlternateLevelsIfUnlocked();
+        return session;
+    }
+
+    // Offline catch-up replaced by bank time + SpeedBoost (see ApplyOfflineBankTime / GetSimulationTicksForFrame).
+    //
+    // /// <summary>Simulate ticks while the app was closed for any bar that was actively training or catching.</summary>
+    // public void CatchUpOfflineProgress(DateTimeOffset savedAtUtc)
+    // {
+    //     if (!HasActiveBars())
+    //     {
+    //         return;
+    //     }
+    //
+    //     var elapsed = DateTimeOffset.UtcNow - savedAtUtc;
+    //     if (elapsed <= TimeSpan.Zero)
+    //     {
+    //         return;
+    //     }
+    //
+    //     var msPerTick = GameBalance.Training.TickIntervalMilliseconds;
+    //     var totalTicks = (long)(elapsed.TotalMilliseconds / msPerTick);
+    //     var maxTicks = (long)(TimeSpan.FromHours(24).TotalMilliseconds / msPerTick);
+    //     totalTicks = Math.Min(totalTicks, maxTicks);
+    //
+    //     for (var i = 0L; i < totalTicks; i++)
+    //     {
+    //         Tick();
+    //     }
+    //
+    //     RestoreCeladonAlternateLevelsIfUnlocked();
+    // }
+
+    /// <summary>Credits offline elapsed time into bank (capped per period and total).</summary>
+    public void ApplyOfflineBankTime(DateTimeOffset savedAtUtc)
+    {
+        var elapsed = DateTimeOffset.UtcNow - savedAtUtc;
+        if (elapsed <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        var deposit = Math.Min(elapsed.TotalSeconds, GameBalance.SpeedBoost.MaxOfflineDepositSeconds);
+        var newBank = Math.Min(State.BankTimeSeconds + deposit, GameBalance.SpeedBoost.MaxBankSeconds);
+        if (Math.Abs(newBank - State.BankTimeSeconds) < double.Epsilon)
+        {
+            return;
+        }
+
+        State.BankTimeSeconds = newBank;
+        BankTimeChanged?.Invoke();
+    }
+
+    /// <summary>1 tick at normal speed, or <see cref="GameBalance.SpeedBoost.Multiplier"/> while bank time remains.</summary>
+    public int GetSimulationTicksForFrame(double realElapsedSeconds)
+    {
+        if (State.BankTimeSeconds <= 0)
+        {
+            return 1;
+        }
+
+        var cost = realElapsedSeconds * GameBalance.SpeedBoost.Multiplier;
+        State.BankTimeSeconds = Math.Max(0, State.BankTimeSeconds - cost);
+        BankTimeChanged?.Invoke();
+        return GameBalance.SpeedBoost.Multiplier;
+    }
+
+    public void RestoreCeladonAlternateLevelsIfUnlocked()
+    {
+        if (!State.CeladonAlternateEeveelutionsUnlocked)
+        {
+            return;
+        }
+
+        GrantSpeciesLevelsWithTypePoints("Flareon", 25);
+        GrantSpeciesLevelsWithTypePoints("Jolteon", 25);
     }
 
     public SpeciesBarConfig GetSpeciesBarConfig(string speciesRootName) => _speciesBarConfigs[speciesRootName];
@@ -348,6 +438,7 @@ public sealed class GameSession
             jolteon.IsVisible = true;
         }
 
-        CeladonAlternatesUnlocked?.Invoke();
+        GrantSpeciesLevelsWithTypePoints("Flareon", 25);
+        GrantSpeciesLevelsWithTypePoints("Jolteon", 25);
     }
 }

@@ -93,7 +93,7 @@ public static class TrainingSimulator
             ? session.GetPokemonCatchSpeedFromBattleClears()
             : session.GetPokemonTrainingSpeedFromBattleClears();
 
-        var perTick = ViewModels.GameBalance.Training.ProgressPerTick
+        var perTick = GameBalance.Training.ProgressPerTick
             * GetCatchActivityMultiplier(session, progress.IsCatching)
             * ClampMultiplier(speedMultiplier);
 
@@ -106,7 +106,7 @@ public static class TrainingSimulator
     }
 
     public static double GetTrainerProgressPerTick(GameSession session, TrainerProgress progress, TrainerBarConfig config) =>
-        ViewModels.GameBalance.Training.ProgressPerTick * ClampMultiplier(session.GetBattleSpeedFromTypeLevels());
+        GameBalance.Training.ProgressPerTick * ClampMultiplier(session.GetBattleSpeedFromTypeLevels());
 
     private static void ApplySpeciesLevelUp(GameSession session, SpeciesProgress progress, SpeciesBarConfig config)
     {
@@ -219,10 +219,10 @@ public static class TrainingSimulator
             return 1.0;
         }
 
-        var multiplier = ViewModels.GameBalance.Routes.CatchSpeedMultiplier;
+        var multiplier = GameBalance.Routes.CatchSpeedMultiplier;
         if (session.QualifiesForFirstCatchSpeedBonus())
         {
-            multiplier *= ViewModels.GameBalance.Routes.FirstCatchSpeedMultiplier;
+            multiplier *= GameBalance.Routes.FirstCatchSpeedMultiplier;
         }
 
         return multiplier;
@@ -232,12 +232,12 @@ public static class TrainingSimulator
     {
         if (double.IsNaN(raw) || double.IsInfinity(raw))
         {
-            return ViewModels.GameBalance.Training.NeutralSpeedMultiplier;
+            return GameBalance.Training.NeutralSpeedMultiplier;
         }
 
         return Math.Clamp(
             raw,
-            ViewModels.GameBalance.Training.MinExternalSpeedMultiplier,
-            ViewModels.GameBalance.Training.MaxExternalSpeedMultiplier);
+            GameBalance.Training.MinExternalSpeedMultiplier,
+            GameBalance.Training.MaxExternalSpeedMultiplier);
     }
 }

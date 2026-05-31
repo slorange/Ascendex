@@ -1,5 +1,6 @@
 ﻿using Android.App;
 using Android.Content.PM;
+using Ascendex.Game.Save;
 using Avalonia;
 using Avalonia.Android;
 
@@ -17,5 +18,11 @@ public class MainActivity : AvaloniaMainActivity<App>
     {
         return base.CustomizeAppBuilder(builder)
             .WithInterFont();
+    }
+
+    protected override void OnPause()
+    {
+        SaveGameService.FlushActiveSave();
+        base.OnPause();
     }
 }

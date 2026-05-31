@@ -9,21 +9,21 @@ public static class TypeLevelUpLookup
     {
         if (evolutionChainLength <= 1)
         {
-            return ViewModels.GameBalance.TypeLevelUp.SingleFormSpeciesPointsPerLevel;
+            return GameBalance.TypeLevelUp.SingleFormSpeciesPointsPerLevel;
         }
 
         if (evolutionChainLength == 2)
         {
             return activeStageIndexZeroBased == 0
-                ? ViewModels.GameBalance.TypeLevelUp.TwoFormFirstStagePoints
-                : ViewModels.GameBalance.TypeLevelUp.TwoFormFinalStagePoints;
+                ? GameBalance.TypeLevelUp.TwoFormFirstStagePoints
+                : GameBalance.TypeLevelUp.TwoFormFinalStagePoints;
         }
 
         return activeStageIndexZeroBased switch
         {
-            0 => ViewModels.GameBalance.TypeLevelUp.ThreePlusFormFirstStagePoints,
-            1 => ViewModels.GameBalance.TypeLevelUp.ThreePlusFormMiddleStagePoints,
-            _ => ViewModels.GameBalance.TypeLevelUp.ThreePlusFormLateStagePoints,
+            0 => GameBalance.TypeLevelUp.ThreePlusFormFirstStagePoints,
+            1 => GameBalance.TypeLevelUp.ThreePlusFormMiddleStagePoints,
+            _ => GameBalance.TypeLevelUp.ThreePlusFormLateStagePoints,
         };
     }
 }

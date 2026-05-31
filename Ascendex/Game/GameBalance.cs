@@ -1,9 +1,9 @@
-using System;
+using Ascendex.Game.Content;
 
-namespace Ascendex.ViewModels;
+namespace Ascendex.Game;
 
 /// <summary>
-/// Numeric knobs for pacing, scaling, unlocks, and economy. Tune here; lookup helpers live beside this type; presentation lives in <see cref="MagicNumbersUI"/>.
+/// Numeric knobs for pacing, scaling, unlocks, and economy. Tune here; lookup helpers live beside this type; presentation lives in ViewModels.MagicNumbersUI.
 /// </summary>
 public static class GameBalance
 {
@@ -16,13 +16,11 @@ public static class GameBalance
         /// <summary>Progress added each tick before any speed multiplier (party levels, battle clears, etc.).</summary>
         public const double ProgressPerTick = 1;
 
-		/// <summary>Starting required progress for a new route Pokémon (before per-level exponent scaling).</summary>
-		public const double DefaultBaseProgressRequired = 20;
+        /// <summary>Starting required progress for a new route Pokémon (before per-level exponent scaling).</summary>
+        public const double DefaultBaseProgressRequired = 20;
 
-		/// <summary>
-		/// Route Pokémon: required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^Level (Level starts at 0).
-		/// </summary>
-		public const double RoutePokemonProgressRequiredPerLevelExponent = 1.1;
+        /// <summary>Route Pokémon: required progress for the next fill = base × this^Level (Level starts at 0).</summary>
+        public const double RoutePokemonProgressRequiredPerLevelExponent = 1.1;
 
         /// <summary>Floor for external speed multipliers so bad values cannot freeze the bar.</summary>
         public const double MinExternalSpeedMultiplier = 0.01;
@@ -32,6 +30,19 @@ public static class GameBalance
 
         /// <summary>Used when no speed callback is supplied, or the callback returns NaN/infinity.</summary>
         public const double NeutralSpeedMultiplier = 1.0;
+    }
+
+    /// <summary>Offline bank time spent for accelerated simulation while playing.</summary>
+    public static class SpeedBoost
+    {
+        /// <summary>Simulation ticks per timer frame while bank time remains (3× game speed).</summary>
+        public const int Multiplier = 3;
+
+        /// <summary>Maximum stored bank seconds (24 h). At 3×, that yields 8 h of boosted play.</summary>
+        public const double MaxBankSeconds = 24 * 60 * 60;
+
+        /// <summary>Maximum seconds credited from a single offline period.</summary>
+        public const double MaxOfflineDepositSeconds = 24 * 60 * 60;
     }
 
     /// <summary>How many type counter points a route Pokémon grants per level-up, by evolution chain length and active stage.</summary>
@@ -82,9 +93,7 @@ public static class GameBalance
         /// <summary>Each trainer after the first: base × step^(order−1). Raise for a steeper difficulty curve.</summary>
         public const double PerTrainerDifficultyStep = 1.5;
 
-        /// <summary>
-        /// Battle trainers: required progress for the next fill = <see cref="PokemonTrainingBarViewModel.BaseProgressRequired"/> × this^Level (Level starts at 0).
-        /// </summary>
+        /// <summary>Battle trainers: required progress for the next fill = base × this^Level (Level starts at 0).</summary>
         public const double BattleProgressRequiredPerLevelExponent = 1.13;
 
         /// <summary>Battle bar speed uses: min(cap, baseline + bonus × total type levels from route training).</summary>

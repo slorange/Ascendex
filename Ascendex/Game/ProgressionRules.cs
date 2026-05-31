@@ -74,10 +74,10 @@ public static class ProgressionRules
 
         return speciesRootNames.Any(name =>
             state.SpeciesByRoot.TryGetValue(name, out var progress)
-            && progress.Level >= ViewModels.GameBalance.Routes.MinPokemonLevelToPassRoute);
+            && progress.Level >= GameBalance.Routes.MinPokemonLevelToPassRoute);
     }
 
     private static bool IsTrainerComplete(RunState state, string trainerId) =>
         state.TrainersById.TryGetValue(trainerId, out var progress)
-        && progress.Level >= ViewModels.GameBalance.Battles.MinTrainerLevelToRevealNextBattle;
+        && progress.Level >= GameBalance.Battles.MinTrainerLevelToRevealNextBattle;
 }

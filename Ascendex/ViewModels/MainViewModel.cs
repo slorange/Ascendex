@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using Ascendex.Game;
 using Ascendex.Game.Content;
+using Ascendex.Game.Save;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.Input;
 
@@ -16,6 +17,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private static readonly IBrush MainTabUnselectedBrush = Brush.Parse(MagicNumbersUI.Tabs.MainTabUnselectedBackground);
 
     private readonly GameSession _session;
+    private readonly SaveGameService _saveService;
     private readonly GameTickLoop _tickLoop;
     private readonly List<PokemonTrainingBarViewModel> _allPokemonBars;
     private readonly List<PokemonTrainingBarViewModel> _allBattleBars;
@@ -26,15 +28,44 @@ public class MainViewModel : ViewModelBase, IDisposable
     private double _battlesTabProgressFraction;
     private bool _hasBattlesTabProgressIndicator;
     private IBrush _battlesTabProgressAccentBrush = Brushes.Transparent;
+    private bool _hasBankTime;
+    private bool _isSpeedBoostActive;
+    private string _speedBoostIndicatorText = string.Empty;
+    private IBrush _speedBoostIndicatorBackground = Brushes.Transparent;
+    private IBrush _speedBoostIndicatorForeground = Brushes.White;
+    private int _lastDisplayedBankSeconds = -1;
+    private bool _lastDisplayedSpeedBoostActive;
+
+    public static MainViewModel Create(SaveGameService? saveService = null)
+    {
+        saveService ??= SaveGameService.CreateDefault();
+        var (session, selectedTab) = saveService.LoadOrCreateNew();
+        return new MainViewModel(session, saveService, selectedTab);
+    }
 
     public MainViewModel()
-        : this(GameSession.CreateNew())
+        : this(_designTimeDefaults.Value.Session, _designTimeDefaults.Value.SaveService, _designTimeDefaults.Value.SelectedTab)
     {
     }
 
-    public MainViewModel(GameSession session)
+    private static readonly Lazy<(GameSession Session, SaveGameService SaveService, int SelectedTab)> _designTimeDefaults = new(() =>
+    {
+        var saveService = SaveGameService.CreateDefault();
+        var (session, selectedTab) = saveService.LoadOrCreateNew();
+        return (session, saveService, selectedTab);
+    });
+
+    private static (GameSession Session, SaveGameService SaveService, int SelectedTab) CreateDefaultSessionAndService()
+    {
+        var saveService = SaveGameService.CreateDefault();
+        var (session, selectedTab) = saveService.LoadOrCreateNew();
+        return (session, saveService, selectedTab);
+    }
+
+    public MainViewModel(GameSession session, SaveGameService saveService, int selectedMainTab)
     {
         _session = session;
+        _saveService = saveService;
         _tickLoop = new GameTickLoop(_session);
 
         SelectRoutesTabCommand = new RelayCommand(() => SelectedMainTab = 0);
@@ -56,13 +87,19 @@ public class MainViewModel : ViewModelBase, IDisposable
         _session.TrainerLevelChanged += OnSessionTrainerLevelChanged;
         _session.TypeCountersChanged += OnSessionTypeCountersChanged;
         _session.ProgressionChanged += OnSessionProgressionChanged;
-        _session.CeladonAlternatesUnlocked += OnCeladonAlternatesUnlocked;
+        _session.BankTimeChanged += OnSessionBankTimeChanged;
+        _session.ActiveBarsChanged += OnSessionActiveBarsChanged;
 
         InitializeRoutes();
         InitializeBattles();
         UpdateProgressionVisibility();
-        SelectArea(AreaSelectors[0]);
+        RestoreSelectedArea();
         InitializePokedex();
+        SelectedMainTab = Math.Clamp(selectedMainTab, 0, 2);
+        RefreshBattlesTabProgressTracking();
+        _saveService.BindAutoSave(_session, () => SelectedMainTab);
+        RefreshSpeedBoostIndicator();
+        _saveService.SaveNow();
     }
 
     public IRelayCommand SelectRoutesTabCommand { get; }
@@ -120,6 +157,36 @@ public class MainViewModel : ViewModelBase, IDisposable
         private set => SetProperty(ref _battlesTabProgressAccentBrush, value);
     }
 
+    public bool HasBankTime
+    {
+        get => _hasBankTime;
+        private set => SetProperty(ref _hasBankTime, value);
+    }
+
+    public bool IsSpeedBoostActive
+    {
+        get => _isSpeedBoostActive;
+        private set => SetProperty(ref _isSpeedBoostActive, value);
+    }
+
+    public string SpeedBoostIndicatorText
+    {
+        get => _speedBoostIndicatorText;
+        private set => SetProperty(ref _speedBoostIndicatorText, value);
+    }
+
+    public IBrush SpeedBoostIndicatorBackground
+    {
+        get => _speedBoostIndicatorBackground;
+        private set => SetProperty(ref _speedBoostIndicatorBackground, value);
+    }
+
+    public IBrush SpeedBoostIndicatorForeground
+    {
+        get => _speedBoostIndicatorForeground;
+        private set => SetProperty(ref _speedBoostIndicatorForeground, value);
+    }
+
     public ObservableCollection<PokemonTrainingBarViewModel> PokemonBars { get; }
 
     public ObservableCollection<PokemonTrainingBarViewModel> BattleBars { get; }
@@ -148,8 +215,17 @@ public class MainViewModel : ViewModelBase, IDisposable
         _session.TrainerLevelChanged -= OnSessionTrainerLevelChanged;
         _session.TypeCountersChanged -= OnSessionTypeCountersChanged;
         _session.ProgressionChanged -= OnSessionProgressionChanged;
-        _session.CeladonAlternatesUnlocked -= OnCeladonAlternatesUnlocked;
+        _session.BankTimeChanged -= OnSessionBankTimeChanged;
+        _session.ActiveBarsChanged -= OnSessionActiveBarsChanged;
         _tickLoop.Dispose();
+        _saveService.Dispose();
+    }
+
+    private void RestoreSelectedArea()
+    {
+        var routeId = _session.State.SelectedRouteId;
+        var area = AreaSelectors.FirstOrDefault(candidate => candidate.RouteId == routeId) ?? AreaSelectors[0];
+        SelectArea(area);
     }
 
     private void InitializeRoutes()
@@ -321,10 +397,61 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void OnSessionProgressionChanged() => UpdateProgressionVisibility();
 
-    private void OnCeladonAlternatesUnlocked()
+    private void OnSessionBankTimeChanged() => RefreshSpeedBoostIndicatorThrottled();
+
+    private void OnSessionActiveBarsChanged() => RefreshSpeedBoostIndicator();
+
+    private void RefreshSpeedBoostIndicatorThrottled()
     {
-        _session.GrantSpeciesLevelsWithTypePoints("Flareon", 25);
-        _session.GrantSpeciesLevelsWithTypePoints("Jolteon", 25);
+        var bankSeconds = (int)Math.Ceiling(_session.State.BankTimeSeconds);
+        var isActive = _session.State.BankTimeSeconds > 0 && _session.HasActiveBars();
+        if (bankSeconds == _lastDisplayedBankSeconds && isActive == _lastDisplayedSpeedBoostActive)
+        {
+            return;
+        }
+
+        _lastDisplayedBankSeconds = bankSeconds;
+        _lastDisplayedSpeedBoostActive = isActive;
+        RefreshSpeedBoostIndicator();
+    }
+
+    private void RefreshSpeedBoostIndicator()
+    {
+        var bankSeconds = _session.State.BankTimeSeconds;
+        var hasBank = bankSeconds > 0;
+        var isActive = hasBank && _session.HasActiveBars();
+        var bankLabel = FormatBankDuration(bankSeconds);
+
+        HasBankTime = hasBank;
+        IsSpeedBoostActive = isActive;
+        SpeedBoostIndicatorText = isActive
+            ? $"{GameBalance.SpeedBoost.Multiplier}× · {bankLabel} bank"
+            : $"{bankLabel} bank";
+        SpeedBoostIndicatorBackground = Brush.Parse(
+            isActive ? MagicNumbersUI.SpeedBoost.ActiveBackground : MagicNumbersUI.SpeedBoost.IdleBackground);
+        SpeedBoostIndicatorForeground = Brush.Parse(
+            isActive ? MagicNumbersUI.SpeedBoost.ActiveForeground : MagicNumbersUI.SpeedBoost.IdleForeground);
+
+        _lastDisplayedBankSeconds = (int)Math.Ceiling(bankSeconds);
+        _lastDisplayedSpeedBoostActive = isActive;
+    }
+
+    private static string FormatBankDuration(double bankSeconds)
+    {
+        var totalSeconds = (int)Math.Ceiling(Math.Max(0, bankSeconds));
+        if (totalSeconds >= 3600)
+        {
+            var hours = totalSeconds / 3600;
+            var minutes = (totalSeconds % 3600) / 60;
+            return minutes > 0 ? $"{hours}h {minutes}m" : $"{hours}h";
+        }
+
+        if (totalSeconds >= 60)
+        {
+            return $"{totalSeconds / 60}m {totalSeconds % 60}s";
+        }
+
+        return $"{totalSeconds}s";
     }
 
     private void SyncTypeCountersFromSession()

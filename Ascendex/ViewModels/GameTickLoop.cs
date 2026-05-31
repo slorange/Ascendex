@@ -29,7 +29,15 @@ public sealed class GameTickLoop : IDisposable
         _session.ActiveBarsChanged -= SyncTimerState;
     }
 
-    private void OnTimerTick(object? sender, EventArgs e) => _session.Tick();
+    private void OnTimerTick(object? sender, EventArgs e)
+    {
+        var realSeconds = GameBalance.Training.TickIntervalMilliseconds / 1000.0;
+        var tickCount = _session.GetSimulationTicksForFrame(realSeconds);
+        for (var i = 0; i < tickCount; i++)
+        {
+            _session.Tick();
+        }
+    }
 
     private void SyncTimerState()
     {

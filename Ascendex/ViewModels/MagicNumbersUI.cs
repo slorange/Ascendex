@@ -1,7 +1,7 @@
 namespace Ascendex.ViewModels;
 
 /// <summary>
-/// Presentation-only constants (chrome, labels, timer text). Game pacing and economy live in <see cref="GameBalance"/>.
+/// Presentation-only constants (chrome, labels, timer text). Game pacing and economy live in <see cref="Ascendex.Game.GameBalance"/>.
 /// </summary>
 public static class MagicNumbersUI
 {
@@ -30,5 +30,18 @@ public static class MagicNumbersUI
 
         /// <summary>If a full bar at the current tick rate would finish in less than this, the bar renders full while training and the timer shows zero (actual progress and level-ups unchanged).</summary>
         public const double UltraFastFullBarMaxDurationSeconds = 0.1;
+    }
+
+    public static class SpeedBoost
+    {
+        /// <summary>Bank-time banner when actively consuming at 3×.</summary>
+        public const string ActiveBackground = "#2A4A2E";
+
+        public const string ActiveForeground = "#8FFF9A";
+
+        /// <summary>Bank-time banner when bank is stored but no bar is active.</summary>
+        public const string IdleBackground = "#2E333B";
+
+        public const string IdleForeground = "#B8C0CC";
     }
 }

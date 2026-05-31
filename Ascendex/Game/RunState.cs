@@ -14,4 +14,7 @@ public sealed class RunState
     public string SelectedRouteId { get; set; } = string.Empty;
 
     public bool CeladonAlternateEeveelutionsUnlocked { get; set; }
+
+    /// <summary>Seconds of bank time; consumed at 3× rate while actively training or catching.</summary>
+    public double BankTimeSeconds { get; set; }
 }
