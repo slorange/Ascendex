@@ -103,18 +103,11 @@ Keep `GameBalance` and `MagicNumbersUI` as the homes for tunable numbers and pre
 
 Do these in order; each step should keep the game playable.
 
-**Step 1 — Content catalogs (next code change)**  
-Consolidate static lists into `Ascendex/Game/Content/` (or similar):
+**Step 1 — Content catalogs (done)**  
+Static lists consolidated under `Ascendex/Game/Content/`.
 
-- Single Kanto species table: dex #, name, evolution stages (types + colors), boss/catch flags.
-- Route table: id, labels, spawn list referencing species.
-- Trainer table: id, name, type, order.
-- Progression graph: ordered steps with **stable ids**, not display-name dictionary keys.
-
-Remove duplicate palette dictionaries from `MainViewModel`. Eevee’s Celadon behavior stays explicit special-case logic until we need a second exception.
-
-**Step 2 — Separate runtime state from VMs**  
-Introduce plain state objects (e.g. per-species level/progress/activity flags, type counter totals, selected area). View models become projections updated from that state. Enables unit tests on rules without Avalonia.
+**Step 2 — Separate runtime state from VMs (done)**  
+`RunState`, `GameSession`, and bar VMs projecting from `SpeciesProgress` / `TrainerProgress`. Progression, pokedex, speed bonuses, and type counters live in the game layer.
 
 **Step 3 — Move simulation off bar VMs**  
 Relocate tick/level-up/evolution/type-point logic out of `PokemonTrainingBarViewModel` into game-layer types. Exact shape (central tick vs per-entity) can be decided in Step 2; default behavior stays one active catch + one active train.

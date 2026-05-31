@@ -1,9 +1,9 @@
 using System;
+using System.ComponentModel;
 using Ascendex.Game;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Threading;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace Ascendex.ViewModels;
@@ -14,6 +14,8 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     private static readonly IBrush ActiveBorderBrush = Brushes.White;
     private static readonly TimeSpan TrainingTickInterval = TimeSpan.FromMilliseconds(GameBalance.Training.TickIntervalMilliseconds);
 
+    private readonly IBarProgressState _progress;
+    private readonly SpeciesProgress? _speciesProgress;
     private readonly Action<TypeLevelContribution[]> _recordTypeLevelContributions;
     private readonly Action<PokemonTrainingBarViewModel> _recordLevelChanged;
     private readonly Action<PokemonTrainingBarViewModel> _toggleTrainingRequested;
@@ -27,7 +29,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     private readonly DispatcherTimer _trainingTimer;
 
     public PokemonTrainingBarViewModel(
-        string name,
+        SpeciesProgress speciesProgress,
         string typeKey,
         string accentColor,
         string accentForegroundColor,
@@ -38,13 +40,93 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         double progressRequiredPerLevelExponent,
         Func<double>? getTrainingProgressMultiplier = null,
         EvolutionStage[]? evolutionChain = null,
-        bool allowsCatching = false,
+        bool allowsCatching = true,
         Func<bool>? qualifiesForFirstCatchSpeedBonus = null,
         Func<double>? getCatchProgressMultiplier = null,
-        double catchDifficultyMultiplier = 1.0,
-        string? trainerId = null)
+        double catchDifficultyMultiplier = 1.0)
+        : this(
+            speciesProgress,
+            speciesProgress.SpeciesRootName,
+            toggleTrainingRequested,
+            recordLevelChanged,
+            recordTypeLevelContributions,
+            progressRequired,
+            progressRequiredPerLevelExponent,
+            getTrainingProgressMultiplier,
+            evolutionChain,
+            allowsCatching,
+            qualifiesForFirstCatchSpeedBonus,
+            getCatchProgressMultiplier,
+            catchDifficultyMultiplier)
     {
-        TrainerId = trainerId;
+        if (_evolutionChain != null)
+        {
+            ApplyEvolutionStageForCurrentLevel();
+            OnPropertyChanged(nameof(ProgressRequired));
+            OnPropertyChanged(nameof(ProgressFraction));
+            OnPropertyChanged(nameof(VisualProgressFraction));
+            OnPropertyChanged(nameof(TimeRemainingText));
+            _recordLevelChanged(this);
+        }
+        else
+        {
+            Name = speciesProgress.SpeciesRootName;
+            TypeKey = typeKey;
+            AccentBrush = Brush.Parse(accentColor);
+            AccentForegroundBrush = Brush.Parse(accentForegroundColor);
+        }
+    }
+
+    public PokemonTrainingBarViewModel(
+        TrainerProgress trainerProgress,
+        string displayName,
+        string typeKey,
+        string accentColor,
+        string accentForegroundColor,
+        Action<PokemonTrainingBarViewModel> toggleTrainingRequested,
+        Action<PokemonTrainingBarViewModel> recordLevelChanged,
+        double progressRequired,
+        double progressRequiredPerLevelExponent,
+        Func<double>? getTrainingProgressMultiplier = null)
+        : this(
+            trainerProgress,
+            displayName,
+            toggleTrainingRequested,
+            recordLevelChanged,
+            static (TypeLevelContribution[] _) => { },
+            progressRequired,
+            progressRequiredPerLevelExponent,
+            getTrainingProgressMultiplier,
+            evolutionChain: null,
+            allowsCatching: false,
+            qualifiesForFirstCatchSpeedBonus: null,
+            getCatchProgressMultiplier: null,
+            catchDifficultyMultiplier: 1.0)
+    {
+        TrainerId = trainerProgress.TrainerId;
+        Name = displayName;
+        TypeKey = typeKey;
+        AccentBrush = Brush.Parse(accentColor);
+        AccentForegroundBrush = Brush.Parse(accentForegroundColor);
+    }
+
+    private PokemonTrainingBarViewModel(
+        IBarProgressState progress,
+        string speciesLineRoot,
+        Action<PokemonTrainingBarViewModel> toggleTrainingRequested,
+        Action<PokemonTrainingBarViewModel> recordLevelChanged,
+        Action<TypeLevelContribution[]> recordTypeLevelContributions,
+        double progressRequired,
+        double progressRequiredPerLevelExponent,
+        Func<double>? getTrainingProgressMultiplier,
+        EvolutionStage[]? evolutionChain,
+        bool allowsCatching,
+        Func<bool>? qualifiesForFirstCatchSpeedBonus,
+        Func<double>? getCatchProgressMultiplier,
+        double catchDifficultyMultiplier)
+    {
+        _progress = progress;
+        _speciesProgress = progress as SpeciesProgress;
         _recordTypeLevelContributions = recordTypeLevelContributions;
         _recordLevelChanged = recordLevelChanged;
         _toggleTrainingRequested = toggleTrainingRequested;
@@ -56,47 +138,24 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         _evolutionChain = evolutionChain is { Length: > 0 } ? evolutionChain : null;
         _progressRequiredPerLevelExponent = progressRequiredPerLevelExponent;
         BaseProgressRequired = progressRequired;
-        Progress = 0;
-        SpeciesLineRoot = name;
+        SpeciesLineRoot = speciesLineRoot;
 
-        if (_evolutionChain != null)
-        {
-            Level = 0;
-            // Level defaults to 0 before assignment, so OnLevelChanged does not run; still need first stage name/colors.
-            ApplyEvolutionStageForCurrentLevel();
-            OnPropertyChanged(nameof(ProgressRequired));
-            OnPropertyChanged(nameof(ProgressFraction));
-            OnPropertyChanged(nameof(VisualProgressFraction));
-            OnPropertyChanged(nameof(TimeRemainingText));
-            _recordLevelChanged(this);
-        }
-        else
-        {
-            Name = name;
-            TypeKey = typeKey;
-            AccentBrush = Brush.Parse(accentColor);
-            AccentForegroundBrush = Brush.Parse(accentForegroundColor);
-            Level = 0;
-        }
+        _progress.PropertyChanged += OnProgressStateChanged;
 
         _trainingTimer = new DispatcherTimer
         {
-            Interval = TrainingTickInterval
+            Interval = TrainingTickInterval,
         };
         _trainingTimer.Tick += OnTrainingTimerTick;
     }
 
-    [ObservableProperty]
-    private string _name = string.Empty;
+    public string Name { get; private set; } = string.Empty;
 
-    [ObservableProperty]
-    private string _typeKey = string.Empty;
+    public string TypeKey { get; private set; } = string.Empty;
 
-    [ObservableProperty]
-    private IBrush _accentBrush = Brushes.Transparent;
+    public IBrush AccentBrush { get; private set; } = Brushes.Transparent;
 
-    [ObservableProperty]
-    private IBrush _accentForegroundBrush = Brushes.Transparent;
+    public IBrush AccentForegroundBrush { get; private set; } = Brushes.Transparent;
 
     /// <summary>Route species key for evolution lookup (initial species name); unchanged when the bar evolves.</summary>
     public string SpeciesLineRoot { get; }
@@ -106,9 +165,45 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public double BaseProgressRequired { get; }
 
+    public int Level
+    {
+        get => _progress.Level;
+        private set => _progress.Level = value;
+    }
+
+    public double Progress
+    {
+        get => _progress.Progress;
+        private set => _progress.Progress = value;
+    }
+
+    public bool IsTraining
+    {
+        get => _progress.IsTraining;
+        private set => _progress.IsTraining = value;
+    }
+
+    public bool IsCatching
+    {
+        get => _speciesProgress?.IsCatching ?? false;
+        private set
+        {
+            if (_speciesProgress != null)
+            {
+                _speciesProgress.IsCatching = value;
+            }
+        }
+    }
+
+    public bool IsVisible
+    {
+        get => _progress.IsVisible;
+        set => _progress.IsVisible = value;
+    }
+
     public double ProgressRequired => BaseProgressRequired * Math.Pow(_progressRequiredPerLevelExponent, Math.Max(0, Level));
 
-    public double ProgressFraction => ProgressRequired == 0 ? 0 : (double)Progress / ProgressRequired;
+    public double ProgressFraction => ProgressRequired == 0 ? 0 : Progress / ProgressRequired;
 
     /// <summary>Bar fill for UI: full while active if pace is ultra-fast; otherwise matches <see cref="ProgressFraction"/>.</summary>
     public double VisualProgressFraction =>
@@ -129,44 +224,40 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public bool ShowCatchingPokeball => Level == 0 && IsCatching;
 
-    [ObservableProperty]
-    private int _level;
-
-    [ObservableProperty]
-    private double _progress;
-
-    [ObservableProperty]
-    private bool _isTraining;
-
-    /// <summary>Uncaught route Pokémon (level 0): separate slower fill from post-catch training.</summary>
-    [ObservableProperty]
-    private bool _isCatching;
-
-    /// <summary>When false, the row is hidden (used for battle unlock order; always true for route Pokémon).</summary>
-    [ObservableProperty]
-    private bool _isVisible = true;
-
-    partial void OnProgressChanged(double value)
+    private void OnProgressStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        OnPropertyChanged(nameof(ProgressFraction));
-        OnPropertyChanged(nameof(VisualProgressFraction));
-        OnPropertyChanged(nameof(TimeRemainingText));
-    }
-
-    partial void OnLevelChanged(int value)
-    {
-        if (value >= 1 && IsCatching)
+        switch (e.PropertyName)
         {
-            IsCatching = false;
-        }
+            case nameof(IBarProgressState.Level):
+                if (Level >= 1 && IsCatching)
+                {
+                    IsCatching = false;
+                }
 
-        ApplyEvolutionStageForCurrentLevel();
-        OnPropertyChanged(nameof(ProgressRequired));
-        OnPropertyChanged(nameof(ProgressFraction));
-        OnPropertyChanged(nameof(VisualProgressFraction));
-        OnPropertyChanged(nameof(TimeRemainingText));
-        NotifyLevelBadgeVisibilityChanged();
-        _recordLevelChanged(this);
+                ApplyEvolutionStageForCurrentLevel();
+                OnPropertyChanged(nameof(Level));
+                OnPropertyChanged(nameof(ProgressRequired));
+                OnPropertyChanged(nameof(ProgressFraction));
+                OnPropertyChanged(nameof(VisualProgressFraction));
+                OnPropertyChanged(nameof(TimeRemainingText));
+                NotifyLevelBadgeVisibilityChanged();
+                _recordLevelChanged(this);
+                break;
+            case nameof(IBarProgressState.Progress):
+                OnPropertyChanged(nameof(Progress));
+                OnPropertyChanged(nameof(ProgressFraction));
+                OnPropertyChanged(nameof(VisualProgressFraction));
+                OnPropertyChanged(nameof(TimeRemainingText));
+                break;
+            case nameof(IBarProgressState.IsTraining):
+            case nameof(SpeciesProgress.IsCatching):
+                OnPropertyChanged(e.PropertyName!);
+                OnActivityStateChanged();
+                break;
+            case nameof(IBarProgressState.IsVisible):
+                OnPropertyChanged(nameof(IsVisible));
+                break;
+        }
     }
 
     private void NotifyLevelBadgeVisibilityChanged()
@@ -260,17 +351,10 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         TypeKey = stage.TypeKey;
         AccentBrush = Brush.Parse(stage.AccentColor);
         AccentForegroundBrush = Brush.Parse(stage.ForegroundColor);
-    }
-
-    partial void OnIsTrainingChanged(bool value)
-    {
-        OnActivityStateChanged();
-    }
-
-    partial void OnIsCatchingChanged(bool value)
-    {
-        NotifyLevelBadgeVisibilityChanged();
-        OnActivityStateChanged();
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(TypeKey));
+        OnPropertyChanged(nameof(AccentBrush));
+        OnPropertyChanged(nameof(AccentForegroundBrush));
     }
 
     private void OnActivityStateChanged()
@@ -296,10 +380,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         _toggleTrainingRequested(this);
     }
 
-    public void SetTraining(bool isTraining)
-    {
-        IsTraining = isTraining;
-    }
+    public void SetTraining(bool isTraining) => IsTraining = isTraining;
 
     public void SetCatching(bool isCatching)
     {
@@ -351,10 +432,9 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             return;
         }
 
-        var increase = GetEffectiveProgressPerTick();
-        Progress += increase;
+        Progress += GetEffectiveProgressPerTick();
 
-		if (Progress < ProgressRequired)
+        if (Progress < ProgressRequired)
         {
             return;
         }
@@ -425,7 +505,6 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         return perTick;
     }
 
-    /// <summary>True when a full bar at the current per-tick rate would complete in under <see cref="MagicNumbersUI.TimeRemaining.UltraFastFullBarMaxDurationSeconds"/> (presentation-only fast path).</summary>
     private bool IsUltraFastTrainingPace()
     {
         var effectivePerTick = GetEffectiveProgressPerTick();
