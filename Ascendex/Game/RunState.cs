@@ -24,6 +24,9 @@ public sealed class RunState
 
     public int ExpShareCount { get; set; }
 
+    /// <summary>FIFO order of species root names currently training (oldest first).</summary>
+    public List<string> SpeciesTrainingOrder { get; } = new();
+
     public int PokedexResetCount { get; set; }
 
     public int ShinyCharmCount { get; set; }

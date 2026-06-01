@@ -181,13 +181,12 @@ public sealed class GameSession
 
         if (selected.IsTraining)
         {
-            selected.IsTraining = false;
+            DeactivateSpeciesTraining(speciesRootName);
             NotifyActiveBarsChanged();
             return;
         }
 
-        ClearSpeciesTrainingExcept(speciesRootName);
-        selected.IsTraining = true;
+        ActivateSpeciesTraining(speciesRootName);
         NotifyActiveBarsChanged();
     }
 
@@ -371,6 +370,7 @@ public sealed class GameSession
         State.SelectedRouteId = RouteIds.PalletTown;
         State.CeladonAlternateEeveelutionsUnlocked = false;
         State.BankTimeSeconds = 0;
+        State.SpeciesTrainingOrder.Clear();
 
         foreach (var speciesRoot in State.SpeciesByRoot.Keys)
         {
@@ -494,6 +494,36 @@ public sealed class GameSession
         State.SelectedRouteId = RouteIds.PalletTown;
     }
 
+    private int MaxConcurrentSpeciesTraining => 1 + State.ExpShareCount;
+
+    private void ActivateSpeciesTraining(string speciesRootName)
+    {
+        var queue = State.SpeciesTrainingOrder;
+        if (queue.Contains(speciesRootName))
+        {
+            return;
+        }
+
+        while (queue.Count >= MaxConcurrentSpeciesTraining)
+        {
+            var oldest = queue[0];
+            queue.RemoveAt(0);
+            if (State.SpeciesByRoot.TryGetValue(oldest, out var displaced))
+            {
+                displaced.IsTraining = false;
+            }
+        }
+
+        queue.Add(speciesRootName);
+        GetSpecies(speciesRootName).IsTraining = true;
+    }
+
+    private void DeactivateSpeciesTraining(string speciesRootName)
+    {
+        State.SpeciesTrainingOrder.Remove(speciesRootName);
+        GetSpecies(speciesRootName).IsTraining = false;
+    }
+
     private void ClearSpeciesCatchingExcept(string speciesRootName)
     {
         foreach (var progress in State.SpeciesByRoot.Values)
@@ -501,17 +531,6 @@ public sealed class GameSession
             if (progress.SpeciesRootName != speciesRootName)
             {
                 progress.IsCatching = false;
-            }
-        }
-    }
-
-    private void ClearSpeciesTrainingExcept(string speciesRootName)
-    {
-        foreach (var progress in State.SpeciesByRoot.Values)
-        {
-            if (progress.SpeciesRootName != speciesRootName)
-            {
-                progress.IsTraining = false;
             }
         }
     }

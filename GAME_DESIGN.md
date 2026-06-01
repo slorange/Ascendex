@@ -42,7 +42,7 @@ Views/          Avalonia UI
 - **Progress bars:** One bar per catchable/trainable species in the current area. Tap a bar to activate it.
 - **Progress model:** Timer-driven fill (~16 ms tick). When the bar fills, the species gains a level and the bar resets. Required progress scales with level (`GameBalance.Training`).
 - **Catch vs train:** Uncaught species (level 0) use a separate, slower catch fill (`GameBalance.Routes.CatchSpeedMultiplier`). After level 1, the same bar is used for training. First catch in the run gets a large catch-speed bonus.
-- **Concurrency:** Only one route bar may be catching and only one may be training at a time (global, not per area).
+- **Concurrency:** Only one route bar may be catching at a time (global). Training slots = 1 + Exp Share count from champion resets; tapping a new species while full drops the oldest trainee (FIFO).
 - **Evolution:** Species with evolution data change name, primary type, and bar colors at level thresholds. Evolution is automatic when the bar level crosses a stage threshold — not player choice.
 - **Route unlock:** Linear world order in `KantoProgressionCatalog.Order`, keyed by stable `RouteIds` / `TrainerIds`. A route step completes when **any** species in that area reaches level ≥ 1. Trainer steps complete when that trainer's battle bar reaches level ≥ 1. Victory Road unlocks optionally after Giovanni.
 - **Boss species:** Some routes use a harder catch multiplier (legendaries, Snorlax, etc.); training speed is unchanged.
@@ -89,7 +89,6 @@ Views/          Avalonia UI
 ### Not implemented
 
 - Prestige, currency, shop, achievements.
-- Multiple simultaneous training targets.
 - Shiny Pokémon, challenge run modes, additional regions.
 - Final badge / league honor artwork (placeholders use type color + border tier).
 - Separate badge-earned flags in save (uses trainer level today).
@@ -123,7 +122,6 @@ Ideas on the horizon — **not scheduled**.
 | **Badge artwork** | PNG/SVG per `BadgeDefinition`; gym vs league templates in XAML |
 | **Separate catch / train tabs** | UI split; may share one species progress object |
 | **Prestige / resets** | Run boundary + persistent bonuses |
-| **Multi-training** | Replace global single-active-bar rule |
 | **Shiny Pokémon** | Per-species flags beyond dex fill color |
 | **Challenge runs** | Run config filtering available content |
 | **Shop / Pokédollars** | Currency + items |

@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 
 namespace Ascendex.Game.Save;
@@ -17,6 +18,7 @@ public static class SaveGameMapper
             ChampionResetUnlocked = state.ChampionResetUnlocked,
             ChampionResetCount = state.ChampionResetCount,
             ExpShareCount = state.ExpShareCount,
+            SpeciesTrainingOrder = state.SpeciesTrainingOrder.ToList(),
             PokedexResetCount = state.PokedexResetCount,
             ShinyCharmCount = state.ShinyCharmCount,
             Species = state.SpeciesByRoot.ToDictionary(
@@ -84,6 +86,48 @@ public static class SaveGameMapper
             {
                 state.TypeCounterCounts[typeKey] = count;
             }
+        }
+
+        state.SpeciesTrainingOrder.Clear();
+        if (data.SpeciesTrainingOrder is { Count: > 0 })
+        {
+            foreach (var speciesRoot in data.SpeciesTrainingOrder)
+            {
+                if (!state.SpeciesTrainingOrder.Contains(speciesRoot))
+                {
+                    state.SpeciesTrainingOrder.Add(speciesRoot);
+                }
+            }
+        }
+
+        SyncSpeciesTrainingOrder(state);
+    }
+
+    private static void SyncSpeciesTrainingOrder(RunState state)
+    {
+        for (var i = state.SpeciesTrainingOrder.Count - 1; i >= 0; i--)
+        {
+            var speciesRoot = state.SpeciesTrainingOrder[i];
+            if (!state.SpeciesByRoot.TryGetValue(speciesRoot, out var progress) || !progress.IsTraining)
+            {
+                state.SpeciesTrainingOrder.RemoveAt(i);
+            }
+        }
+
+        foreach (var pair in state.SpeciesByRoot.OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            if (pair.Value.IsTraining && !state.SpeciesTrainingOrder.Contains(pair.Key))
+            {
+                state.SpeciesTrainingOrder.Add(pair.Key);
+            }
+        }
+
+        var maxConcurrent = 1 + state.ExpShareCount;
+        while (state.SpeciesTrainingOrder.Count > maxConcurrent)
+        {
+            var oldest = state.SpeciesTrainingOrder[0];
+            state.SpeciesTrainingOrder.RemoveAt(0);
+            state.SpeciesByRoot[oldest].IsTraining = false;
         }
     }
 }

@@ -5,7 +5,7 @@ namespace Ascendex.Game.Save;
 
 public static class SaveGameVersions
 {
-    public const int Current = 2;
+    public const int Current = 3;
 }
 
 /// <summary>Versioned, JSON-serializable player save.</summary>
@@ -28,6 +28,8 @@ public sealed class SaveGameData
     public int ChampionResetCount { get; set; }
 
     public int ExpShareCount { get; set; }
+
+    public List<string> SpeciesTrainingOrder { get; set; } = new();
 
     public int PokedexResetCount { get; set; }
 
