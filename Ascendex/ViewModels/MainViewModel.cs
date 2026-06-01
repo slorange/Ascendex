@@ -71,6 +71,9 @@ public class MainViewModel : ViewModelBase, IDisposable
         SelectRoutesTabCommand = new RelayCommand(() => SelectedMainTab = 0);
         SelectBattlesTabCommand = new RelayCommand(() => SelectedMainTab = 1);
         SelectCollectionsTabCommand = new RelayCommand(() => SelectedMainTab = 2);
+        SelectPrestigeTabCommand = new RelayCommand(() => SelectedMainTab = 3);
+        ChampionResetCommand = new RelayCommand(PerformChampionReset);
+        PokedexResetCommand = new RelayCommand(PerformPokedexReset);
 
         TypeCounters = new ObservableCollection<TypeCounterViewModel>(
             TypeCatalog.CounterTypeKeys.Select(key => new TypeCounterViewModel(key)));
@@ -96,7 +99,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         RestoreSelectedArea();
         InitializePokedex();
         InitializeBadges();
-        SelectedMainTab = Math.Clamp(selectedMainTab, 0, 2);
+        SelectedMainTab = Math.Clamp(selectedMainTab, 0, 3);
+        RefreshPrestigeState();
         RefreshBattlesTabProgressTracking();
         _saveService.BindAutoSave(_session, () => SelectedMainTab);
         RefreshSpeedBoostIndicator();
@@ -109,6 +113,12 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public IRelayCommand SelectCollectionsTabCommand { get; }
 
+    public IRelayCommand SelectPrestigeTabCommand { get; }
+
+    public IRelayCommand ChampionResetCommand { get; }
+
+    public IRelayCommand PokedexResetCommand { get; }
+
     public int SelectedMainTab
     {
         get => _selectedMainTab;
@@ -119,9 +129,11 @@ public class MainViewModel : ViewModelBase, IDisposable
                 OnPropertyChanged(nameof(IsRoutesTabSelected));
                 OnPropertyChanged(nameof(IsBattlesTabSelected));
                 OnPropertyChanged(nameof(IsCollectionsTabSelected));
+                OnPropertyChanged(nameof(IsPrestigeTabSelected));
                 OnPropertyChanged(nameof(RoutesTabBackground));
                 OnPropertyChanged(nameof(BattlesTabBackground));
                 OnPropertyChanged(nameof(CollectionsTabBackground));
+                OnPropertyChanged(nameof(PrestigeTabBackground));
             }
         }
     }
@@ -132,11 +144,15 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public bool IsCollectionsTabSelected => _selectedMainTab == 2;
 
+    public bool IsPrestigeTabSelected => _selectedMainTab == 3;
+
     public IBrush RoutesTabBackground => _selectedMainTab == 0 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
     public IBrush BattlesTabBackground => _selectedMainTab == 1 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
     public IBrush CollectionsTabBackground => _selectedMainTab == 2 ? MainTabSelectedBrush : MainTabUnselectedBrush;
+
+    public IBrush PrestigeTabBackground => _selectedMainTab == 3 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
     public bool ShowRoutesTabPokeballIcon => !_session.AnySpeciesCatching();
 
@@ -201,6 +217,36 @@ public class MainViewModel : ViewModelBase, IDisposable
     public ObservableCollection<BadgeSlotViewModel> GymBadgeSlots { get; } = new();
 
     public ObservableCollection<BadgeSlotViewModel> LeagueHonorSlots { get; } = new();
+
+    public int ChampionResetCount => _session.State.ChampionResetCount;
+
+    public int PokedexResetCount => _session.State.PokedexResetCount;
+
+    public int ExpShareCount => _session.State.ExpShareCount;
+
+    public int ShinyCharmCount => _session.State.ShinyCharmCount;
+
+    public bool CanChampionReset => _session.CanChampionReset();
+
+    public bool CanPokedexReset => _session.CanPokedexReset();
+
+    public string ChampionResetRequirementText => CanChampionReset
+        ? "Ready: Blue has been defeated in this run."
+        : "Requires Blue defeated in this run.";
+
+    public string PokedexResetRequirementText => CanPokedexReset
+        ? "Unlocked: all 150 Pokedex entries caught."
+        : $"Requires all 150 caught ({CaughtPokedexCount}/150).";
+
+    public int CaughtPokedexCount => PokedexRules.GetFilledCells(_session.State).Select(fill => fill.CellIndex).Distinct().Count();
+
+    public IBrush ChampionResetButtonBackground => CanChampionReset
+        ? Brush.Parse("#4A6A3A")
+        : Brush.Parse("#3A3F47");
+
+    public IBrush PokedexResetButtonBackground => CanPokedexReset
+        ? Brush.Parse("#3A5D7A")
+        : Brush.Parse("#3A3F47");
 
     public string CurrentAreaName
     {
@@ -383,12 +429,14 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         RefreshRoutesTabCatchIndicator();
         RefreshPokedexCells();
+        RefreshPrestigeState();
         NotifyAllBarsTimeRemainingChanged();
     }
 
     private void OnSessionTrainerLevelChanged()
     {
         RefreshBadgeSlots();
+        RefreshPrestigeState();
         NotifyAllBarsTimeRemainingChanged();
     }
 
@@ -458,6 +506,56 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
 
         return $"{totalSeconds}s";
+    }
+
+    private void PerformChampionReset()
+    {
+        if (!_session.PerformChampionReset())
+        {
+            return;
+        }
+
+        RefreshAllAfterReset();
+    }
+
+    private void PerformPokedexReset()
+    {
+        if (!_session.PerformPokedexReset())
+        {
+            return;
+        }
+
+        RefreshAllAfterReset();
+    }
+
+    private void RefreshAllAfterReset()
+    {
+        UpdateProgressionVisibility();
+        RefreshRoutesTabCatchIndicator();
+        RefreshBattlesTabProgressTracking();
+        SyncTypeCountersFromSession();
+        RestoreSelectedArea();
+        RefreshPokedexCells();
+        RefreshBadgeSlots();
+        RefreshSpeedBoostIndicator();
+        RefreshPrestigeState();
+        NotifyAllBarsTimeRemainingChanged();
+        _saveService.SaveNow();
+    }
+
+    private void RefreshPrestigeState()
+    {
+        OnPropertyChanged(nameof(ChampionResetCount));
+        OnPropertyChanged(nameof(PokedexResetCount));
+        OnPropertyChanged(nameof(ExpShareCount));
+        OnPropertyChanged(nameof(ShinyCharmCount));
+        OnPropertyChanged(nameof(CanChampionReset));
+        OnPropertyChanged(nameof(CanPokedexReset));
+        OnPropertyChanged(nameof(ChampionResetButtonBackground));
+        OnPropertyChanged(nameof(PokedexResetButtonBackground));
+        OnPropertyChanged(nameof(ChampionResetRequirementText));
+        OnPropertyChanged(nameof(PokedexResetRequirementText));
+        OnPropertyChanged(nameof(CaughtPokedexCount));
     }
 
     private void SyncTypeCountersFromSession()

@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Ascendex.Controls"
+             xmlns:vm="clr-namespace:Ascendex.ViewModels"
+             mc:Ignorable="d"
+             d:DesignWidth="430"
+             d:DesignHeight="860"
+             x:Class="Ascendex.Views.PrestigeView"
+             x:DataType="vm:MainViewModel">
+  <Design.DataContext>
+    <vm:MainViewModel />
+  </Design.DataContext>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="16,18" Spacing="12">
+      <controls:OutlinedTextBlock Text="Prestige" Foreground="White" FontSize="28" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1.5"/>
+
+      <Border Background="#2E333B" BorderBrush="#5F6470" BorderThickness="1" Padding="12">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Meta Inventory" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+          <TextBlock Text="{Binding ExpShareCount, StringFormat=Exp Shares: {0}}" Foreground="#E8C547" FontSize="16" FontWeight="SemiBold"/>
+          <TextBlock Text="{Binding ShinyCharmCount, StringFormat=Shiny Charms: {0}}" Foreground="#8FD8FF" FontSize="16" FontWeight="SemiBold"/>
+        </StackPanel>
+      </Border>
+
+      <Border Background="#2E333B" BorderBrush="#5F6470" BorderThickness="1" Padding="12">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Champion Reset" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+          <TextBlock Text="{Binding ChampionResetRequirementText}" Foreground="#B8C0CC" FontSize="14"/>
+          <TextBlock Text="{Binding ChampionResetCount, StringFormat=Total champion resets: {0}}" Foreground="#E8C547" FontSize="14"/>
+          <Button Content="Reset Run (Champion)" Command="{Binding ChampionResetCommand}" IsEnabled="{Binding CanChampionReset}" Background="{Binding ChampionResetButtonBackground}" Foreground="White" Padding="10,8"/>
+        </StackPanel>
+      </Border>
+
+      <Border Background="#2E333B" BorderBrush="#5F6470" BorderThickness="1" Padding="12">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Pokedex Reset" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+          <TextBlock Text="{Binding PokedexResetRequirementText}" Foreground="#B8C0CC" FontSize="14"/>
+          <TextBlock Text="{Binding PokedexResetCount, StringFormat=Total pokedex resets: {0}}" Foreground="#8FD8FF" FontSize="14"/>
+          <Button Content="Reset Run (Pokedex)" Command="{Binding PokedexResetCommand}" IsEnabled="{Binding CanPokedexReset}" Background="{Binding PokedexResetButtonBackground}" Foreground="White" Padding="10,8"/>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

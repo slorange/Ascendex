@@ -283,11 +283,122 @@ public sealed class GameSession
         return baseline + gymBonusAboveBaseline * GameBalance.Battles.RouteCatchFractionOfTrainingGymBonus;
     }
 
+    public bool CanChampionReset() =>
+        GetTrainer(TrainerIds.Blue).Level >= GameBalance.Battles.MinTrainerLevelToRevealNextBattle;
+
+    public bool CanPokedexReset() => CountCaughtPokedexEntries() >= KantoSpeciesCatalog.NationalDexCellCount;
+
+    public bool PerformChampionReset()
+    {
+        if (!CanChampionReset())
+        {
+            return false;
+        }
+
+        State.ChampionResetUnlocked = true;
+        State.ChampionResetCount++;
+        State.ExpShareCount = ComputeExpShareCount(State.ChampionResetCount);
+        ResetRunProgressForPrestige();
+        return true;
+    }
+
+    public bool PerformPokedexReset()
+    {
+        if (!CanPokedexReset())
+        {
+            return false;
+        }
+
+        State.PokedexResetCount++;
+        State.ShinyCharmCount++;
+        ResetRunProgressForPrestige();
+        return true;
+    }
+
     public bool IsRouteVisible(string routeId) => ProgressionRules.IsRouteVisible(State, routeId);
 
     public bool IsTrainerVisible(string trainerId) => ProgressionRules.IsTrainerVisible(State, trainerId);
 
     public bool AnySpeciesCatching() => State.SpeciesByRoot.Values.Any(progress => progress.IsCatching);
+
+    private int CountCaughtPokedexEntries() =>
+        PokedexRules.GetFilledCells(State).Select(fill => fill.CellIndex).Distinct().Count();
+
+    private static int ComputeExpShareCount(int championResetCount)
+    {
+        if (championResetCount <= 0)
+        {
+            return 0;
+        }
+
+        var shares = 0;
+        var required = 1;
+        var spent = 0;
+        while (spent + required <= championResetCount)
+        {
+            spent += required;
+            shares++;
+            required++;
+        }
+
+        return shares;
+    }
+
+    private void ResetRunProgressForPrestige()
+    {
+        foreach (var species in State.SpeciesByRoot.Values)
+        {
+            species.Level = 0;
+            species.Progress = 0;
+            species.IsTraining = false;
+            species.IsCatching = false;
+            species.IsVisible = !StartsHiddenBySpeciesRoot(species.SpeciesRootName);
+        }
+
+        foreach (var trainer in State.TrainersById.Values)
+        {
+            trainer.Level = 0;
+            trainer.Progress = 0;
+            trainer.IsTraining = false;
+            trainer.IsVisible = true;
+        }
+
+        foreach (var typeKey in TypeCatalog.CounterTypeKeys)
+        {
+            State.TypeCounterCounts[typeKey] = 0;
+        }
+
+        State.SelectedRouteId = RouteIds.PalletTown;
+        State.CeladonAlternateEeveelutionsUnlocked = false;
+        State.BankTimeSeconds = 0;
+
+        foreach (var speciesRoot in State.SpeciesByRoot.Keys)
+        {
+            SpeciesLevelChanged?.Invoke(speciesRoot);
+        }
+
+        TrainerLevelChanged?.Invoke();
+        TypeCountersChanged?.Invoke();
+        ProgressionChanged?.Invoke();
+        NotifyActiveBarsChanged();
+        BankTimeChanged?.Invoke();
+    }
+
+    private static bool StartsHiddenBySpeciesRoot(string speciesRootName)
+    {
+        foreach (var route in KantoRouteCatalog.All)
+        {
+            foreach (var spawn in route.Spawns)
+            {
+                if (spawn.SpeciesRootName == speciesRootName)
+                {
+                    return spawn.StartsHidden;
+                }
+            }
+        }
+
+        return false;
+    }
 
     private double RouteGymTrainingSpeedMultiplier =>
         SpeedMultiplierFromBattleClears(

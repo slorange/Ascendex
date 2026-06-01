@@ -96,7 +96,7 @@ public sealed class SaveGameStore
     private static SaveGameData? Deserialize(string json)
     {
         var data = JsonSerializer.Deserialize<SaveGameData>(json, JsonOptions);
-        if (data is null || data.Version != SaveGameVersions.Current)
+        if (data is null || data.Version > SaveGameVersions.Current)
         {
             return null;
         }

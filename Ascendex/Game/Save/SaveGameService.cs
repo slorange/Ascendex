@@ -104,5 +104,5 @@ public sealed class SaveGameService : IDisposable
         _store.Save(data);
     }
 
-    private static int ClampTab(int tab) => Math.Clamp(tab, 0, 2);
+    private static int ClampTab(int tab) => Math.Clamp(tab, 0, 3);
 }

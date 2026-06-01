@@ -14,6 +14,11 @@ public static class SaveGameMapper
             SelectedRouteId = state.SelectedRouteId,
             CeladonAlternateEeveelutionsUnlocked = state.CeladonAlternateEeveelutionsUnlocked,
             BankTimeSeconds = state.BankTimeSeconds,
+            ChampionResetUnlocked = state.ChampionResetUnlocked,
+            ChampionResetCount = state.ChampionResetCount,
+            ExpShareCount = state.ExpShareCount,
+            PokedexResetCount = state.PokedexResetCount,
+            ShinyCharmCount = state.ShinyCharmCount,
             Species = state.SpeciesByRoot.ToDictionary(
                 pair => pair.Key,
                 pair => new SpeciesProgressData
@@ -41,6 +46,11 @@ public static class SaveGameMapper
         state.SelectedRouteId = data.SelectedRouteId;
         state.CeladonAlternateEeveelutionsUnlocked = data.CeladonAlternateEeveelutionsUnlocked;
         state.BankTimeSeconds = data.BankTimeSeconds;
+        state.ChampionResetUnlocked = data.ChampionResetUnlocked;
+        state.ChampionResetCount = data.ChampionResetCount;
+        state.ExpShareCount = data.ExpShareCount;
+        state.PokedexResetCount = data.PokedexResetCount;
+        state.ShinyCharmCount = data.ShinyCharmCount;
 
         foreach (var (speciesRoot, saved) in data.Species)
         {
