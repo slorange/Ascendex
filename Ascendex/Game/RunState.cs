@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 
 namespace Ascendex.Game;
+
 
 /// <summary>Serializable-friendly snapshot of in-run player progress.</summary>
 public sealed class RunState
@@ -30,4 +32,10 @@ public sealed class RunState
     public int PokedexResetCount { get; set; }
 
     public int ShinyCharmCount { get; set; }
+
+    /// <summary>Species roots ever caught shiny; guarantees a shiny on the next catch after a reset.</summary>
+    public HashSet<string> LifetimeShinySpeciesRoots { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Banked guaranteed shinies passed forward when a guaranteed catch also wins the shiny roll.</summary>
+    public int PendingGuaranteedShinies { get; set; }
 }

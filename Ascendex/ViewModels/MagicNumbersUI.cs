@@ -54,6 +54,14 @@ public static class MagicNumbersUI
         public const double MinCellSize = 10;
 
         public const double HorizontalMarginTotal = 32;
+
+        public const double CellBorderThickness = 2;
+
+        public const string UncaughtBorder = "#5F6470";
+
+        public const string NormalBorder = "White";
+
+        public const string ShinyBorder = "#E8C547";
     }
 
     public static class BadgeGrid

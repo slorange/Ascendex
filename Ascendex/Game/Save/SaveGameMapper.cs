@@ -21,6 +21,8 @@ public static class SaveGameMapper
             SpeciesTrainingOrder = state.SpeciesTrainingOrder.ToList(),
             PokedexResetCount = state.PokedexResetCount,
             ShinyCharmCount = state.ShinyCharmCount,
+            LifetimeShinySpeciesRoots = state.LifetimeShinySpeciesRoots.ToList(),
+            PendingGuaranteedShinies = state.PendingGuaranteedShinies,
             Species = state.SpeciesByRoot.ToDictionary(
                 pair => pair.Key,
                 pair => new SpeciesProgressData
@@ -30,6 +32,7 @@ public static class SaveGameMapper
                     IsTraining = pair.Value.IsTraining,
                     IsCatching = pair.Value.IsCatching,
                     IsVisible = pair.Value.IsVisible,
+                    IsShiny = pair.Value.IsShiny,
                 }),
             Trainers = state.TrainersById.ToDictionary(
                 pair => pair.Key,
@@ -53,6 +56,16 @@ public static class SaveGameMapper
         state.ExpShareCount = data.ExpShareCount;
         state.PokedexResetCount = data.PokedexResetCount;
         state.ShinyCharmCount = data.ShinyCharmCount;
+        state.PendingGuaranteedShinies = data.PendingGuaranteedShinies;
+
+        state.LifetimeShinySpeciesRoots.Clear();
+        if (data.LifetimeShinySpeciesRoots is { Count: > 0 })
+        {
+            foreach (var speciesRoot in data.LifetimeShinySpeciesRoots)
+            {
+                state.LifetimeShinySpeciesRoots.Add(speciesRoot);
+            }
+        }
 
         foreach (var (speciesRoot, saved) in data.Species)
         {
@@ -66,6 +79,7 @@ public static class SaveGameMapper
             progress.IsTraining = saved.IsTraining;
             progress.IsCatching = saved.IsCatching;
             progress.IsVisible = saved.IsVisible;
+            progress.IsShiny = saved.IsShiny;
         }
 
         foreach (var (trainerId, saved) in data.Trainers)

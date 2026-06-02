@@ -5,7 +5,7 @@ namespace Ascendex.Game.Save;
 
 public static class SaveGameVersions
 {
-    public const int Current = 3;
+    public const int Current = 4;
 }
 
 /// <summary>Versioned, JSON-serializable player save.</summary>
@@ -35,6 +35,10 @@ public sealed class SaveGameData
 
     public int ShinyCharmCount { get; set; }
 
+    public List<string> LifetimeShinySpeciesRoots { get; set; } = new();
+
+    public int PendingGuaranteedShinies { get; set; }
+
     public Dictionary<string, SpeciesProgressData> Species { get; set; } = new();
 
     public Dictionary<string, TrainerProgressData> Trainers { get; set; } = new();
@@ -53,6 +57,8 @@ public sealed class SpeciesProgressData
     public bool IsCatching { get; set; }
 
     public bool IsVisible { get; set; } = true;
+
+    public bool IsShiny { get; set; }
 }
 
 public sealed class TrainerProgressData

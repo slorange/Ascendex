@@ -111,6 +111,7 @@ public static class TrainingSimulator
 
     private static void ApplySpeciesLevelUp(GameSession session, SpeciesProgress progress, SpeciesBarConfig config)
     {
+        var previousLevel = progress.Level;
         var chain = config.EvolutionChain;
         if (chain is { Length: > 0 })
         {
@@ -135,6 +136,12 @@ public static class TrainingSimulator
         }
 
         RecordTypeContributionsForCurrentStage(session, progress, config);
+
+        if (previousLevel == 0 && progress.Level >= 1)
+        {
+            ShinyRules.ApplyFirstCatchShinyRoll(session.State, progress);
+        }
+
         session.NotifySpeciesLevelChanged(progress.SpeciesRootName);
     }
 

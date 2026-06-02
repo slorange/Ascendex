@@ -55,7 +55,7 @@
             <Button Classes="staticClick" Command="{Binding ToggleTrainingCommand}" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsVisible="{Binding IsVisible}">
               <Grid Height="68">
                 <Grid ColumnDefinitions="*,2,4.5*">
-                  <Border Background="{Binding AccentBrush}">
+                  <Border Background="{Binding NormalBrush}">
                     <controls:OutlinedTextBlock Text="{Binding Level}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28" FontWeight="SemiBold" Foreground="White" OutlineBrush="Black" OutlineThickness="1.5"/>
                   </Border>
 
@@ -63,7 +63,7 @@
 
                   <Grid Grid.Column="2" ClipToBounds="True">
                     <Border Background="#4B505A"/>
-                    <Border Background="{Binding AccentBrush}" RenderTransformOrigin="0,0.5">
+                    <Border Background="{Binding NormalBrush}" RenderTransformOrigin="0,0.5">
                       <Border.RenderTransform>
                         <ScaleTransform ScaleX="{Binding VisualProgressFraction}" />
                       </Border.RenderTransform>

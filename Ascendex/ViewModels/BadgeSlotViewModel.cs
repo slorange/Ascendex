@@ -47,7 +47,7 @@ public partial class BadgeSlotViewModel : ViewModelBase
 
         var fill = string.IsNullOrEmpty(typeKey)
             ? MagicNumbersUI.BadgeGrid.UnearnedBackground
-            : TypeCatalog.AccentHexForTypeKey(typeKey);
+            : TypeCatalog.NormalHexForTypeKey(typeKey);
         BackgroundBrush = Brush.Parse(fill);
         BorderBrush = Brush.Parse(Definition.Tier switch
         {

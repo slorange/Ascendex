@@ -86,7 +86,8 @@ public static class CollectionsTooltipFormatter
             progress.Level,
             progress.IsVisible);
         var statsLine = FormatTypeContributions(contributions);
-        return $"{dexSpeciesName}\nLv. {progress.Level}\n{statsLine}";
+        var shinyLine = progress.IsShiny ? "\nShiny" : string.Empty;
+        return $"{dexSpeciesName}\nLv. {progress.Level}{shinyLine}\n{statsLine}";
     }
 
     public static string FormatBadge(BadgeDefinition badge, RunState state)

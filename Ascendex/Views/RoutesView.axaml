@@ -54,7 +54,7 @@
           <Button Classes="staticClick" Command="{Binding ToggleTrainingCommand}" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsVisible="{Binding IsVisible}">
             <Grid Height="68">
               <Grid ColumnDefinitions="*,2,4.5*">
-                <Border Background="{Binding AccentBrush}">
+                <Border Background="{Binding NormalBrush}">
                   <Panel>
                     <controls:OutlinedTextBlock Text="{Binding Level}" IsVisible="{Binding ShowLevelBadge}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28" FontWeight="SemiBold" Foreground="White" OutlineBrush="Black" OutlineThickness="1.5"/>
                     <Image Source="avares://Ascendex/Assets/pokeball.png" IsVisible="{Binding ShowCatchingPokeball}" Width="36" Height="36" HorizontalAlignment="Center" VerticalAlignment="Center" Stretch="Uniform"/>
@@ -65,12 +65,15 @@
 
                 <Grid Grid.Column="2" ClipToBounds="True">
                   <Border Background="#4B505A"/>
-                  <Border Background="{Binding AccentBrush}" RenderTransformOrigin="0,0.5">
+                  <Border Background="{Binding NormalBrush}" RenderTransformOrigin="0,0.5">
                     <Border.RenderTransform>
                       <ScaleTransform ScaleX="{Binding VisualProgressFraction}" />
                     </Border.RenderTransform>
                   </Border>
-                  <controls:OutlinedTextBlock Margin="14,0" Text="{Binding Name}" VerticalAlignment="Center" Foreground="White" FontSize="22" FontWeight="Medium" OutlineBrush="Black" OutlineThickness="1.5"/>
+                  <StackPanel Margin="14,0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <controls:OutlinedTextBlock Text="{Binding Name}" VerticalAlignment="Center" Foreground="White" FontSize="22" FontWeight="Medium" OutlineBrush="Black" OutlineThickness="1.5"/>
+                    <Image Source="avares://Ascendex/Assets/shiny.png" IsVisible="{Binding ShowShinyIcon}" Width="22" Height="22" VerticalAlignment="Center" Stretch="Uniform"/>
+                  </StackPanel>
                   <controls:OutlinedTextBlock Margin="0,0,10,6" Text="{Binding TimeRemainingText}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Foreground="White" FontSize="11" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1"/>
                 </Grid>
               </Grid>

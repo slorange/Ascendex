@@ -351,6 +351,7 @@ public sealed class GameSession
             species.Progress = 0;
             species.IsTraining = false;
             species.IsCatching = false;
+            species.IsShiny = false;
             species.IsVisible = !StartsHiddenBySpeciesRoot(species.SpeciesRootName);
         }
 
@@ -369,7 +370,6 @@ public sealed class GameSession
 
         State.SelectedRouteId = RouteIds.PalletTown;
         State.CeladonAlternateEeveelutionsUnlocked = false;
-        State.BankTimeSeconds = 0;
         State.SpeciesTrainingOrder.Clear();
 
         foreach (var speciesRoot in State.SpeciesByRoot.Keys)

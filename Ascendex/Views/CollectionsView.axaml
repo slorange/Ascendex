@@ -16,7 +16,7 @@
   <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="16,18" Spacing="12" HorizontalAlignment="Center">
       <controls:OutlinedTextBlock Text="Pokédex" Foreground="White" FontSize="24" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1.5" HorizontalAlignment="Center"/>
-      <Border x:Name="PokedexGridHost" HorizontalAlignment="Center" ClipToBounds="True">
+      <Border x:Name="PokedexGridHost" HorizontalAlignment="Center" ClipToBounds="False">
         <ItemsControl ItemsSource="{Binding PokedexCells}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
@@ -25,7 +25,7 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:PokedexCellViewModel">
-              <controls:CollectionsInfoCell BorderBrush="White" BorderThickness="1" Background="{Binding FillBrush}" DetailText="{Binding TooltipText}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+              <controls:CollectionsInfoCell BorderBrush="{Binding BorderBrush}" BorderThickness="2" Background="{Binding FillBrush}" DetailText="{Binding TooltipText}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>

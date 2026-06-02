@@ -27,7 +27,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private PokemonTrainingBarViewModel? _battlesTabTrackedBar;
     private double _battlesTabProgressFraction;
     private bool _hasBattlesTabProgressIndicator;
-    private IBrush _battlesTabProgressAccentBrush = Brushes.Transparent;
+    private IBrush _battlesTabProgressNormalBrush = Brushes.Transparent;
     private bool _hasBankTime;
     private bool _isSpeedBoostActive;
     private string _speedBoostIndicatorText = string.Empty;
@@ -168,10 +168,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         private set => SetProperty(ref _battlesTabProgressFraction, value);
     }
 
-    public IBrush BattlesTabProgressAccentBrush
+    public IBrush BattlesTabProgressNormalBrush
     {
-        get => _battlesTabProgressAccentBrush;
-        private set => SetProperty(ref _battlesTabProgressAccentBrush, value);
+        get => _battlesTabProgressNormalBrush;
+        private set => SetProperty(ref _battlesTabProgressNormalBrush, value);
     }
 
     public bool HasBankTime
@@ -288,13 +288,12 @@ public class MainViewModel : ViewModelBase, IDisposable
             {
                 var progress = _session.GetSpecies(spawn.SpeciesRootName);
                 var typeKey = KantoSpeciesCatalog.PrimaryTypeKey(spawn.SpeciesRootName);
-                var palette = KantoSpeciesCatalog.ResolveRouteBarPalette(spawn.SpeciesRootName);
+                var normalColor = KantoSpeciesCatalog.ResolveRouteBarColor(spawn.SpeciesRootName);
                 var bar = new PokemonTrainingBarViewModel(
                     _session,
                     progress,
                     typeKey,
-                    palette.AccentColor,
-                    palette.ForegroundColor,
+                    normalColor,
                     ToggleTraining);
                 bars.Add(bar);
             }
@@ -357,14 +356,13 @@ public class MainViewModel : ViewModelBase, IDisposable
         foreach (var trainer in KantoTrainerCatalog.All)
         {
             var progress = _session.GetTrainer(trainer.Id);
-            var palette = KantoSpeciesCatalog.ResolveTrainerBarPalette(trainer.TypeKey);
+            var normalColor = KantoSpeciesCatalog.ResolveTrainerBarColor(trainer.TypeKey);
             var bar = new PokemonTrainingBarViewModel(
                 _session,
                 progress,
                 trainer.DisplayName,
                 trainer.TypeKey,
-                palette.AccentColor,
-                palette.ForegroundColor,
+                normalColor,
                 ToggleBattleTraining);
             _allBattleBars.Add(bar);
             BattleBars.Add(bar);
@@ -386,7 +384,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         if (e.PropertyName is nameof(PokemonTrainingBarViewModel.Progress)
             or nameof(PokemonTrainingBarViewModel.ProgressFraction)
-            or nameof(PokemonTrainingBarViewModel.AccentBrush))
+            or nameof(PokemonTrainingBarViewModel.NormalBrush))
         {
             UpdateBattlesTabProgressBindings();
         }
@@ -416,13 +414,13 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             HasBattlesTabProgressIndicator = false;
             BattlesTabProgressFraction = 0;
-            BattlesTabProgressAccentBrush = Brushes.Transparent;
+            BattlesTabProgressNormalBrush = Brushes.Transparent;
             return;
         }
 
         HasBattlesTabProgressIndicator = true;
         BattlesTabProgressFraction = bar.ProgressFraction;
-        BattlesTabProgressAccentBrush = bar.AccentBrush;
+        BattlesTabProgressNormalBrush = bar.NormalBrush;
     }
 
     private void OnSessionSpeciesLevelChanged(string speciesRootName)
@@ -611,12 +609,15 @@ public class MainViewModel : ViewModelBase, IDisposable
         foreach (var cell in PokedexCells)
         {
             cell.FillBrush = PokedexCellViewModel.UncaughtFill;
+            cell.BorderBrush = PokedexCellViewModel.UncaughtBorder;
             cell.TooltipText = CollectionsTooltipFormatter.FormatPokedexCell(cell.SpeciesName, _session.State);
         }
 
         foreach (var fill in PokedexRules.GetFilledCells(_session.State))
         {
-            PokedexCells[fill.CellIndex].FillBrush = Brush.Parse(TypeCatalog.AccentHexForTypeKey(fill.TypeKey));
+            var cell = PokedexCells[fill.CellIndex];
+            cell.FillBrush = Brush.Parse(fill.FillColorHex);
+            cell.BorderBrush = fill.IsShiny ? PokedexCellViewModel.ShinyBorder : PokedexCellViewModel.NormalBorder;
         }
     }
 

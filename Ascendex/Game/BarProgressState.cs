@@ -29,6 +29,9 @@ public partial class SpeciesProgress : ObservableObject, IBarProgressState
 
     [ObservableProperty]
     private bool _isVisible = true;
+
+    [ObservableProperty]
+    private bool _isShiny;
 }
 
 public partial class TrainerProgress : ObservableObject, IBarProgressState

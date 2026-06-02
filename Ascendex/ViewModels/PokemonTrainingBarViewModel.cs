@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using Ascendex.Game;
+using Ascendex.Game.Content;
 using Avalonia;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.Input;
@@ -25,8 +26,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         GameSession session,
         SpeciesProgress speciesProgress,
         string typeKey,
-        string accentColor,
-        string accentForegroundColor,
+        string normalColor,
         Action<PokemonTrainingBarViewModel> toggleTrainingRequested)
     {
         _session = session;
@@ -47,8 +47,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         {
             Name = speciesProgress.SpeciesRootName;
             TypeKey = typeKey;
-            AccentBrush = Brush.Parse(accentColor);
-            AccentForegroundBrush = Brush.Parse(accentForegroundColor);
+            NormalBrush = Brush.Parse(ResolveBarColorHex(speciesProgress.SpeciesRootName, normalColor, string.Empty));
         }
 
         NotifyProgressDerivedPropertiesChanged();
@@ -59,8 +58,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         TrainerProgress trainerProgress,
         string displayName,
         string typeKey,
-        string accentColor,
-        string accentForegroundColor,
+        string normalColor,
         Action<PokemonTrainingBarViewModel> toggleTrainingRequested)
     {
         _session = session;
@@ -71,8 +69,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         SpeciesLineRoot = displayName;
         Name = displayName;
         TypeKey = typeKey;
-        AccentBrush = Brush.Parse(accentColor);
-        AccentForegroundBrush = Brush.Parse(accentForegroundColor);
+        NormalBrush = Brush.Parse(normalColor);
 
         _progress.PropertyChanged += OnProgressStateChanged;
         NotifyProgressDerivedPropertiesChanged();
@@ -82,9 +79,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public string TypeKey { get; private set; } = string.Empty;
 
-    public IBrush AccentBrush { get; private set; } = Brushes.Transparent;
-
-    public IBrush AccentForegroundBrush { get; private set; } = Brushes.Transparent;
+    public IBrush NormalBrush { get; private set; } = Brushes.Transparent;
 
     public string SpeciesLineRoot { get; }
 
@@ -131,6 +126,8 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public bool ShowCatchingPokeball => Level == 0 && IsCatching;
 
+    public bool ShowShinyIcon => _speciesProgress?.IsShiny == true;
+
     public bool CanCatch => _speciesConfig?.AllowsCatching == true && Level == 0;
 
     private void OnProgressStateChanged(object? sender, PropertyChangedEventArgs e)
@@ -144,6 +141,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             case nameof(IBarProgressState.Progress):
             case nameof(IBarProgressState.IsTraining):
             case nameof(SpeciesProgress.IsCatching):
+            case nameof(SpeciesProgress.IsShiny):
             case nameof(IBarProgressState.IsVisible):
                 if (e.PropertyName is nameof(IBarProgressState.IsTraining) or nameof(SpeciesProgress.IsCatching))
                 {
@@ -155,6 +153,12 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
                 if (e.PropertyName is nameof(SpeciesProgress.IsCatching))
                 {
                     NotifyLevelBadgeVisibilityChanged();
+                }
+
+                if (e.PropertyName is nameof(SpeciesProgress.IsShiny))
+                {
+                    OnPropertyChanged(nameof(ShowShinyIcon));
+                    ApplyBarColorForCurrentStage();
                 }
 
                 break;
@@ -187,12 +191,56 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
         Name = stage.Name;
         TypeKey = stage.TypeKey;
-        AccentBrush = Brush.Parse(stage.AccentColor);
-        AccentForegroundBrush = Brush.Parse(stage.ForegroundColor);
+        ApplyBarColorForCurrentStage(stage);
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(TypeKey));
-        OnPropertyChanged(nameof(AccentBrush));
-        OnPropertyChanged(nameof(AccentForegroundBrush));
+    }
+
+    private void ApplyBarColorForCurrentStage(EvolutionStage? stage = null)
+    {
+        if (stage == null && _evolutionChain != null)
+        {
+            if (!TrainingSimulator.TryGetResolvedEvolutionStage(_evolutionChain, Level, out var resolved))
+            {
+                return;
+            }
+
+            stage = resolved;
+        }
+
+        var colorHex = stage != null
+            ? ResolveBarColorHex(stage.Value.Name, stage.Value.NormalColor, stage.Value.ShinyColor)
+            : _speciesProgress != null && KantoSpeciesCatalog.TryGetColorsForDexName(
+                _speciesProgress.SpeciesRootName,
+                out var normal,
+                out var shiny)
+                ? ResolveBarColorHex(_speciesProgress.SpeciesRootName, normal, shiny)
+                : null;
+
+        if (colorHex == null)
+        {
+            return;
+        }
+
+        NormalBrush = Brush.Parse(colorHex);
+        OnPropertyChanged(nameof(NormalBrush));
+    }
+
+    private string ResolveBarColorHex(string speciesName, string normalColor, string shinyColor)
+    {
+        if (_speciesProgress?.IsShiny != true)
+        {
+            return normalColor;
+        }
+
+        if (!string.IsNullOrEmpty(shinyColor))
+        {
+            return shinyColor;
+        }
+
+        return KantoSpeciesCatalog.TryGetColorsForDexName(speciesName, out _, out var catalogShiny)
+            ? catalogShiny
+            : normalColor;
     }
 
     [RelayCommand]

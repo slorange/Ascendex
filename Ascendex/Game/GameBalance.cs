@@ -131,4 +131,14 @@ public static class GameBalance
         /// <summary>Unlock the next trainer row when the previous trainer’s level is at least this (1 = one full clear from starting level 0).</summary>
         public const int MinTrainerLevelToRevealNextBattle = 1;
     }
+
+    /// <summary>Shiny Pokémon on first catch (level 0 → 1).</summary>
+    public static class Shinies
+    {
+        /// <summary>Base shiny chance per catch before Shiny Charm bonus (1 / 100).</summary>
+        public const double BaseCatchRate = 1.0 / 100.0;
+
+        /// <summary>Each Shiny Charm adds this many times the base rate (1 charm → 2× base, 5 → 6× base).</summary>
+        public const double ShinyCharmRateMultiplierPerCharm = 1.0;
+    }
 }
