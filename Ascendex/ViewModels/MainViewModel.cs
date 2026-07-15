@@ -15,6 +15,14 @@ public class MainViewModel : ViewModelBase, IDisposable
 {
     private static readonly IBrush MainTabSelectedBrush = Brush.Parse(MagicNumbersUI.Tabs.MainTabSelectedBackground);
     private static readonly IBrush MainTabUnselectedBrush = Brush.Parse(MagicNumbersUI.Tabs.MainTabUnselectedBackground);
+    private static readonly IBrush ChampionResetReadyBrush = Brush.Parse("#4A6A3A");
+    private static readonly IBrush PokedexResetReadyBrush = Brush.Parse("#3A5D7A");
+    private static readonly IBrush ResetUnavailableBrush = Brush.Parse("#3A3F47");
+    private static readonly IBrush SpeedBoostActiveBackground = Brush.Parse(MagicNumbersUI.SpeedBoost.ActiveBackground);
+    private static readonly IBrush SpeedBoostIdleBackground = Brush.Parse(MagicNumbersUI.SpeedBoost.IdleBackground);
+    private static readonly IBrush SpeedBoostActiveForeground = Brush.Parse(MagicNumbersUI.SpeedBoost.ActiveForeground);
+    private static readonly IBrush SpeedBoostIdleForeground = Brush.Parse(MagicNumbersUI.SpeedBoost.IdleForeground);
+    private static readonly Dictionary<string, IBrush> PokedexBrushes = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly GameSession _session;
     private readonly SaveGameService _saveService;
@@ -35,6 +43,15 @@ public class MainViewModel : ViewModelBase, IDisposable
     private IBrush _speedBoostIndicatorForeground = Brushes.White;
     private int _lastDisplayedBankSeconds = -1;
     private bool _lastDisplayedSpeedBoostActive;
+    private bool _routesInitialized;
+    private bool _battlesInitialized;
+    private bool _shopInitialized;
+    private bool _collectionsInitialized;
+    private bool _isSuspended;
+    private DateTimeOffset? _suspendedAtUtc;
+    private string? _directTrackedTrainerId;
+    private IBrush _directTrackedTrainerBrush = Brushes.Transparent;
+    private bool _disposed;
 
     public static MainViewModel Create(SaveGameService? saveService = null)
     {
@@ -67,6 +84,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         _session = session;
         _saveService = saveService;
         _tickLoop = new GameTickLoop(_session);
+        _tickLoop.TimeDisplayRefreshRequested += OnTimeDisplayRefreshRequested;
+        _tickLoop.PresentationAdvanced += OnPresentationAdvanced;
 
         SelectRoutesTabCommand = new RelayCommand(() => SelectedMainTab = 0);
         SelectBattlesTabCommand = new RelayCommand(() => SelectedMainTab = 1);
@@ -76,11 +95,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         ChampionResetCommand = new RelayCommand(PerformChampionReset);
         PokedexResetCommand = new RelayCommand(PerformPokedexReset);
 
-        TypeCounters = new ObservableCollection<TypeCounterViewModel>(
-            TypeCatalog.CounterTypeKeys.Select(key => new TypeCounterViewModel(key)));
-
-        SyncTypeCountersFromSession();
-
+        TypeCounters = new ObservableCollection<TypeCounterViewModel>();
         PokemonBars = new ObservableCollection<PokemonTrainingBarViewModel>();
         BattleBars = new ObservableCollection<PokemonTrainingBarViewModel>();
         AreaSelectors = new ObservableCollection<AreaSelectionViewModel>();
@@ -97,17 +112,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         _session.ActiveBarsChanged += OnSessionActiveBarsChanged;
         _session.ShopStateChanged += OnSessionShopStateChanged;
 
-        InitializeRoutes();
-        InitializeBattles();
-        InitializeShop();
-        UpdateProgressionVisibility();
-        RestoreSelectedArea();
-        InitializePokedex();
-        InitializeBadges();
+        _selectedMainTab = -1;
         SelectedMainTab = Math.Clamp(selectedMainTab, 0, 4);
-        RefreshPrestigeState();
-        RefreshShopState();
-        RefreshBattlesTabProgressTracking();
         _saveService.BindAutoSave(_session, () => SelectedMainTab);
         RefreshSpeedBoostIndicator();
         _saveService.SaveNow();
@@ -137,6 +143,11 @@ public class MainViewModel : ViewModelBase, IDisposable
                 value = 0;
             }
 
+            if (_selectedMainTab != value)
+            {
+                EnsureTabInitialized(value);
+            }
+
             if (SetProperty(ref _selectedMainTab, value))
             {
                 OnPropertyChanged(nameof(IsRoutesTabSelected));
@@ -149,6 +160,10 @@ public class MainViewModel : ViewModelBase, IDisposable
                 OnPropertyChanged(nameof(ShopTabBackground));
                 OnPropertyChanged(nameof(CollectionsTabBackground));
                 OnPropertyChanged(nameof(PrestigeTabBackground));
+            }
+            else
+            {
+                EnsureTabInitialized(value);
             }
         }
     }
@@ -278,12 +293,12 @@ public class MainViewModel : ViewModelBase, IDisposable
     public int CaughtPokedexCount => PokedexRules.GetFilledCells(_session.State).Select(fill => fill.CellIndex).Distinct().Count();
 
     public IBrush ChampionResetButtonBackground => CanChampionReset
-        ? Brush.Parse("#4A6A3A")
-        : Brush.Parse("#3A3F47");
+        ? ChampionResetReadyBrush
+        : ResetUnavailableBrush;
 
     public IBrush PokedexResetButtonBackground => CanPokedexReset
-        ? Brush.Parse("#3A5D7A")
-        : Brush.Parse("#3A3F47");
+        ? PokedexResetReadyBrush
+        : ResetUnavailableBrush;
 
     public string CurrentAreaName
     {
@@ -299,6 +314,12 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         _session.SpeciesLevelChanged -= OnSessionSpeciesLevelChanged;
         _session.TrainerLevelChanged -= OnSessionTrainerLevelChanged;
         _session.TypeCountersChanged -= OnSessionTypeCountersChanged;
@@ -306,12 +327,79 @@ public class MainViewModel : ViewModelBase, IDisposable
         _session.BankTimeChanged -= OnSessionBankTimeChanged;
         _session.ActiveBarsChanged -= OnSessionActiveBarsChanged;
         _session.ShopStateChanged -= OnSessionShopStateChanged;
+        _tickLoop.TimeDisplayRefreshRequested -= OnTimeDisplayRefreshRequested;
+        _tickLoop.PresentationAdvanced -= OnPresentationAdvanced;
         _tickLoop.Dispose();
         _saveService.Dispose();
     }
 
+    public void Suspend()
+    {
+        if (_disposed || _isSuspended)
+        {
+            return;
+        }
+
+        _isSuspended = true;
+        _suspendedAtUtc = DateTimeOffset.UtcNow;
+        _tickLoop.Suspend();
+        _saveService.SuspendAutoSave();
+        _saveService.SaveNow();
+    }
+
+    public void Resume()
+    {
+        if (_disposed || !_isSuspended)
+        {
+            return;
+        }
+
+        if (_suspendedAtUtc is { } suspendedAt)
+        {
+            _session.ApplyOfflineBankTime(suspendedAt);
+        }
+
+        _suspendedAtUtc = null;
+        _isSuspended = false;
+        _saveService.ResumeAutoSave();
+        _tickLoop.Resume();
+        RefreshSpeedBoostIndicator();
+    }
+
+    private void EnsureTabInitialized(int tab)
+    {
+        switch (tab)
+        {
+            case 0:
+                InitializeRoutes();
+                UpdateProgressionVisibility();
+                RestoreSelectedArea();
+                break;
+            case 1:
+                InitializeBattles();
+                UpdateProgressionVisibility();
+                RefreshBattlesTabProgressTracking();
+                break;
+            case 2:
+                InitializeShop();
+                RefreshShopState();
+                break;
+            case 3:
+                InitializeCollections();
+                break;
+            case 4:
+                RefreshPrestigeState();
+                break;
+        }
+    }
+
     private void RestoreSelectedArea()
     {
+        if (!_routesInitialized || AreaSelectors.Count == 0)
+        {
+            return;
+        }
+
         var routeId = _session.State.SelectedRouteId;
         var area = AreaSelectors.FirstOrDefault(candidate => candidate.RouteId == routeId) ?? AreaSelectors[0];
         SelectArea(area);
@@ -319,6 +407,17 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void InitializeRoutes()
     {
+        if (_routesInitialized)
+        {
+            return;
+        }
+
+        _routesInitialized = true;
+        foreach (var typeKey in TypeCatalog.CounterTypeKeys)
+        {
+            TypeCounters.Add(new TypeCounterViewModel(typeKey));
+        }
+
         foreach (var route in KantoRouteCatalog.All)
         {
             var bars = new List<PokemonTrainingBarViewModel>();
@@ -338,6 +437,8 @@ public class MainViewModel : ViewModelBase, IDisposable
 
             AddArea(route.Id, route.ShortLabel, route.DisplayName, bars.ToArray());
         }
+
+        SyncTypeCountersFromSession();
     }
 
     private void AddArea(
@@ -391,6 +492,12 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void InitializeBattles()
     {
+        if (_battlesInitialized)
+        {
+            return;
+        }
+
+        _battlesInitialized = true;
         foreach (var trainer in KantoTrainerCatalog.All)
         {
             var progress = _session.GetTrainer(trainer.Id);
@@ -461,26 +568,75 @@ public class MainViewModel : ViewModelBase, IDisposable
         BattlesTabProgressNormalBrush = bar.NormalBrush;
     }
 
+    private void UpdateDirectBattlesTabProgress()
+    {
+        var progress = _session.GetActiveTrainerProgress();
+        if (progress is null)
+        {
+            _directTrackedTrainerId = null;
+            HasBattlesTabProgressIndicator = false;
+            BattlesTabProgressFraction = 0;
+            BattlesTabProgressNormalBrush = Brushes.Transparent;
+            return;
+        }
+
+        var config = _session.GetTrainerBarConfig(progress.TrainerId);
+        var required = _session.GetTrainerProgressRequired(config, progress.Level);
+        if (_directTrackedTrainerId != progress.TrainerId)
+        {
+            _directTrackedTrainerId = progress.TrainerId;
+            var trainer = KantoTrainerCatalog.All.First(candidate => candidate.Id == progress.TrainerId);
+            _directTrackedTrainerBrush = Brush.Parse(KantoSpeciesCatalog.ResolveTrainerBarColor(trainer.TypeKey));
+        }
+
+        HasBattlesTabProgressIndicator = true;
+        BattlesTabProgressFraction = required <= 0 ? 0 : progress.Progress / required;
+        BattlesTabProgressNormalBrush = _directTrackedTrainerBrush;
+    }
+
     private void OnSessionSpeciesLevelChanged(string speciesRootName)
     {
         RefreshRoutesTabCatchIndicator();
-        RefreshPokedexCells();
+        if (_collectionsInitialized)
+        {
+            if (string.IsNullOrEmpty(speciesRootName))
+            {
+                RefreshPokedexCells();
+            }
+            else
+            {
+                RefreshPokedexCellsForRoot(speciesRootName);
+            }
+        }
+
         RefreshPrestigeState();
         NotifyAllBarsTimeRemainingChanged();
     }
 
     private void OnSessionTrainerLevelChanged()
     {
-        RefreshBadgeSlots();
+        if (_collectionsInitialized)
+        {
+            RefreshBadgeSlots();
+        }
+
         RefreshPrestigeState();
         RefreshShopState();
-        RefreshBattlesTabProgressTracking();
+        if (_battlesInitialized)
+        {
+            RefreshBattlesTabProgressTracking();
+        }
+
         NotifyAllBarsTimeRemainingChanged();
     }
 
     private void OnSessionTypeCountersChanged()
     {
-        SyncTypeCountersFromSession();
+        if (_routesInitialized)
+        {
+            SyncTypeCountersFromSession();
+        }
+
         foreach (var battleBar in _allBattleBars)
         {
             battleBar.NotifyTimeRemainingChanged();
@@ -501,7 +657,45 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void OnSessionBankTimeChanged() => RefreshSpeedBoostIndicatorThrottled();
 
-    private void OnSessionActiveBarsChanged() => RefreshSpeedBoostIndicator();
+    private void OnSessionActiveBarsChanged()
+    {
+        RefreshSpeedBoostIndicator();
+        if (_battlesInitialized)
+        {
+            RefreshBattlesTabProgressTracking();
+        }
+        else
+        {
+            UpdateDirectBattlesTabProgress();
+        }
+    }
+
+    private void OnTimeDisplayRefreshRequested()
+    {
+        foreach (var bar in _allPokemonBars)
+        {
+            if (bar.IsActivityActive)
+            {
+                bar.NotifyTimeRemainingChanged();
+            }
+        }
+
+        foreach (var bar in _allBattleBars)
+        {
+            if (bar.IsActivityActive)
+            {
+                bar.NotifyTimeRemainingChanged();
+            }
+        }
+    }
+
+    private void OnPresentationAdvanced()
+    {
+        if (!_battlesInitialized)
+        {
+            UpdateDirectBattlesTabProgress();
+        }
+    }
 
     private void RefreshSpeedBoostIndicatorThrottled()
     {
@@ -529,10 +723,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         SpeedBoostIndicatorText = isActive
             ? $"{GameBalance.SpeedBoost.Multiplier}× · {bankLabel} bank"
             : $"{bankLabel} bank";
-        SpeedBoostIndicatorBackground = Brush.Parse(
-            isActive ? MagicNumbersUI.SpeedBoost.ActiveBackground : MagicNumbersUI.SpeedBoost.IdleBackground);
-        SpeedBoostIndicatorForeground = Brush.Parse(
-            isActive ? MagicNumbersUI.SpeedBoost.ActiveForeground : MagicNumbersUI.SpeedBoost.IdleForeground);
+        SpeedBoostIndicatorBackground = isActive ? SpeedBoostActiveBackground : SpeedBoostIdleBackground;
+        SpeedBoostIndicatorForeground = isActive ? SpeedBoostActiveForeground : SpeedBoostIdleForeground;
 
         _lastDisplayedBankSeconds = (int)Math.Ceiling(bankSeconds);
         _lastDisplayedSpeedBoostActive = isActive;
@@ -578,22 +770,22 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void RefreshAllAfterReset()
     {
-        UpdateProgressionVisibility();
-        RefreshRoutesTabCatchIndicator();
-        RefreshBattlesTabProgressTracking();
-        SyncTypeCountersFromSession();
-        RestoreSelectedArea();
-        RefreshPokedexCells();
-        RefreshBadgeSlots();
-        RefreshSpeedBoostIndicator();
-        RefreshPrestigeState();
-        RefreshShopState();
-        NotifyAllBarsTimeRemainingChanged();
+        if (_routesInitialized)
+        {
+            RestoreSelectedArea();
+        }
+
         _saveService.SaveNow();
     }
 
     private void InitializeShop()
     {
+        if (_shopInitialized)
+        {
+            return;
+        }
+
+        _shopInitialized = true;
         ShopItems.Clear();
         foreach (var (_, item) in KantoShopCatalog.EnumerateItems())
         {
@@ -618,6 +810,11 @@ public class MainViewModel : ViewModelBase, IDisposable
             SelectedMainTab = 0;
         }
 
+        if (!_shopInitialized)
+        {
+            return;
+        }
+
         foreach (var item in ShopItems)
         {
             item.Refresh();
@@ -628,6 +825,11 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void RefreshVitaminTargets()
     {
+        if (!_shopInitialized)
+        {
+            return;
+        }
+
         var caught = _session.State.SpeciesByRoot.Values
             .Where(progress => progress.Level >= GameBalance.Routes.MinPokemonLevelToPassRoute)
             .Select(progress => progress.SpeciesRootName)
@@ -701,6 +903,11 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void SyncTypeCountersFromSession()
     {
+        if (!_routesInitialized)
+        {
+            return;
+        }
+
         foreach (var counter in TypeCounters)
         {
             counter.Count = _session.GetTypeCounterCount(counter.TypeKey);
@@ -722,18 +929,36 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void UpdateProgressionVisibility()
     {
-        foreach (var area in AreaSelectors)
+        if (_routesInitialized)
         {
-            area.IsVisible = _session.IsRouteVisible(area.RouteId);
-        }
-
-        foreach (var trainerBar in _allBattleBars)
-        {
-            if (trainerBar.TrainerId is not null)
+            foreach (var area in AreaSelectors)
             {
-                trainerBar.IsVisible = _session.IsTrainerVisible(trainerBar.TrainerId);
+                area.IsVisible = _session.IsRouteVisible(area.RouteId);
             }
         }
+
+        if (_battlesInitialized)
+        {
+            foreach (var trainerBar in _allBattleBars)
+            {
+                if (trainerBar.TrainerId is not null)
+                {
+                    trainerBar.IsVisible = _session.IsTrainerVisible(trainerBar.TrainerId);
+                }
+            }
+        }
+    }
+
+    private void InitializeCollections()
+    {
+        if (_collectionsInitialized)
+        {
+            return;
+        }
+
+        _collectionsInitialized = true;
+        InitializePokedex();
+        InitializeBadges();
     }
 
     private void InitializePokedex()
@@ -759,7 +984,25 @@ public class MainViewModel : ViewModelBase, IDisposable
         foreach (var fill in PokedexRules.GetFilledCells(_session.State))
         {
             var cell = PokedexCells[fill.CellIndex];
-            cell.FillBrush = Brush.Parse(fill.FillColorHex);
+            cell.FillBrush = GetPokedexBrush(fill.FillColorHex);
+            cell.BorderBrush = fill.IsShiny ? PokedexCellViewModel.ShinyBorder : PokedexCellViewModel.NormalBorder;
+        }
+    }
+
+    private void RefreshPokedexCellsForRoot(string speciesRootName)
+    {
+        foreach (var cellIndex in PokedexRules.GetCellIndicesForRoot(speciesRootName))
+        {
+            var cell = PokedexCells[cellIndex];
+            cell.FillBrush = PokedexCellViewModel.UncaughtFill;
+            cell.BorderBrush = PokedexCellViewModel.UncaughtBorder;
+            cell.TooltipText = CollectionsTooltipFormatter.FormatPokedexCell(cell.SpeciesName, _session.State);
+        }
+
+        foreach (var fill in PokedexRules.GetFilledCellsForRoot(_session.State, speciesRootName))
+        {
+            var cell = PokedexCells[fill.CellIndex];
+            cell.FillBrush = GetPokedexBrush(fill.FillColorHex);
             cell.BorderBrush = fill.IsShiny ? PokedexCellViewModel.ShinyBorder : PokedexCellViewModel.NormalBorder;
         }
     }
@@ -783,6 +1026,11 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void RefreshBadgeSlots()
     {
+        if (!_collectionsInitialized)
+        {
+            return;
+        }
+
         RefreshBadgeRow(GymBadgeSlots);
         RefreshBadgeRow(LeagueHonorSlots);
     }
@@ -798,5 +1046,16 @@ public class MainViewModel : ViewModelBase, IDisposable
             slot.SetEarned(earned, typeKey);
             slot.TooltipText = CollectionsTooltipFormatter.FormatBadge(slot.Definition, _session.State);
         }
+    }
+
+    private static IBrush GetPokedexBrush(string colorHex)
+    {
+        if (!PokedexBrushes.TryGetValue(colorHex, out var brush))
+        {
+            brush = Brush.Parse(colorHex);
+            PokedexBrushes[colorHex] = brush;
+        }
+
+        return brush;
     }
 }

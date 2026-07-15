@@ -189,4 +189,23 @@ public static class ShopRules
         state.VitaminDosesBySpeciesRoot[speciesRootName] = doses + 1;
         return true;
     }
+
+    public static int TryApplyMaxVitamins(RunState state, string speciesRootName)
+    {
+        if (state.UnassignedVitaminCount <= 0 || !state.SpeciesByRoot.ContainsKey(speciesRootName))
+        {
+            return 0;
+        }
+
+        state.VitaminDosesBySpeciesRoot.TryGetValue(speciesRootName, out var doses);
+        var count = Math.Min(state.UnassignedVitaminCount, MaxVitaminDoses(speciesRootName) - doses);
+        if (count <= 0)
+        {
+            return 0;
+        }
+
+        state.UnassignedVitaminCount -= count;
+        state.VitaminDosesBySpeciesRoot[speciesRootName] = doses + count;
+        return count;
+    }
 }

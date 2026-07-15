@@ -10,6 +10,29 @@ public sealed class GameSession
 {
     private readonly Dictionary<string, SpeciesBarConfig> _speciesBarConfigs = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TrainerBarConfig> _trainerBarConfigs = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (int Level, double Required)> _speciesProgressRequiredCache = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (int Level, double Required)> _trainerProgressRequiredCache = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, double> _vitaminTrainingMultiplierCache = new(StringComparer.Ordinal);
+    private SpeciesBarConfig[] _activeSpeciesBarConfigs = [];
+    private TrainerBarConfig? _activeTrainerBarConfig;
+    private double _simulationTickRemainder;
+    private bool _speedCachesDirty = true;
+    private double _cachedPokemonTrainingSpeed;
+    private double _cachedPokemonCatchSpeed;
+    private double _cachedBattleSpeed;
+    private double _cachedBestBallMultiplier;
+    private bool _cachedQualifiesForFirstCatchBonus;
+    private int _lastNotifiedBankSeconds = int.MinValue;
+    private readonly HashSet<string> _pendingSpeciesLevelChanges = new(StringComparer.Ordinal);
+    private readonly HashSet<SpeciesProgress> _simulationSpeciesProgressChanged = [];
+    private readonly HashSet<SpeciesProgress> _simulationSpeciesLevelChanged = [];
+    private readonly HashSet<TrainerProgress> _simulationTrainerProgressChanged = [];
+    private readonly HashSet<TrainerProgress> _simulationTrainerLevelChanged = [];
+    private int _notificationBatchDepth;
+    private bool _pendingTrainerLevelChanged;
+    private bool _pendingTypeCountersChanged;
+    private bool _pendingProgressionChanged;
+    private bool _pendingShopStateChanged;
 
     public RunState State { get; } = new();
 
@@ -50,7 +73,7 @@ public sealed class GameSession
         return session;
     }
 
-    // Offline catch-up replaced by bank time + SpeedBoost (see ApplyOfflineBankTime / GetSimulationTicksForFrame).
+    // Offline catch-up is represented by bank time and consumed by Advance.
     //
     // /// <summary>Simulate ticks while the app was closed for any bar that was actively training or catching.</summary>
     // public void CatchUpOfflineProgress(DateTimeOffset savedAtUtc)
@@ -96,21 +119,61 @@ public sealed class GameSession
         }
 
         State.BankTimeSeconds = newBank;
-        BankTimeChanged?.Invoke();
+        NotifyBankTimeChanged(force: true);
     }
 
-    /// <summary>1 tick at normal speed, or <see cref="GameBalance.SpeedBoost.Multiplier"/> while bank time remains.</summary>
-    public int GetSimulationTicksForFrame(double realElapsedSeconds)
+    /// <summary>Advances logical 16 ms ticks from monotonic foreground elapsed time.</summary>
+    public void Advance(double realElapsedSeconds)
     {
-        if (State.BankTimeSeconds <= 0)
+        if (realElapsedSeconds <= 0 || !HasActiveBars())
         {
-            return 1;
+            return;
         }
 
-        var cost = realElapsedSeconds * GameBalance.SpeedBoost.Multiplier;
-        State.BankTimeSeconds = Math.Max(0, State.BankTimeSeconds - cost);
-        BankTimeChanged?.Invoke();
-        return GameBalance.SpeedBoost.Multiplier;
+        var boostedRealSeconds = State.BankTimeSeconds > 0
+            ? Math.Min(realElapsedSeconds, State.BankTimeSeconds / GameBalance.SpeedBoost.Multiplier)
+            : 0;
+        var normalRealSeconds = realElapsedSeconds - boostedRealSeconds;
+        var bankCost = boostedRealSeconds * GameBalance.SpeedBoost.Multiplier;
+        if (boostedRealSeconds > 0)
+        {
+            State.BankTimeSeconds = Math.Max(
+                0,
+                State.BankTimeSeconds - bankCost);
+            NotifyBankTimeChanged();
+        }
+
+        var logicalSeconds = normalRealSeconds + boostedRealSeconds * GameBalance.SpeedBoost.Multiplier;
+        var totalTicks = logicalSeconds * 1000.0 / GameBalance.Training.TickIntervalMilliseconds
+            + _simulationTickRemainder;
+        var wholeTicks = (long)Math.Floor(totalTicks);
+        _simulationTickRemainder = totalTicks - wholeTicks;
+        if (wholeTicks > 0)
+        {
+            var processedTicks = AdvanceTicks(wholeTicks);
+            if (processedTicks < wholeTicks && bankCost > 0)
+            {
+                var unusedTicks = wholeTicks - processedTicks;
+                var normalLogicalTicks = normalRealSeconds * 1000.0
+                    / GameBalance.Training.TickIntervalMilliseconds;
+                var boostedLogicalTicks = boostedRealSeconds * GameBalance.SpeedBoost.Multiplier * 1000.0
+                    / GameBalance.Training.TickIntervalMilliseconds;
+                var unusedBoostedTicks = Math.Clamp(
+                    unusedTicks - normalLogicalTicks,
+                    0,
+                    boostedLogicalTicks);
+                var refund = unusedBoostedTicks * GameBalance.Training.TickIntervalMilliseconds / 1000.0;
+                State.BankTimeSeconds = Math.Min(
+                    GameBalance.SpeedBoost.MaxBankSeconds,
+                    State.BankTimeSeconds + refund);
+                NotifyBankTimeChanged(force: true);
+            }
+        }
+
+        if (!HasActiveBars())
+        {
+            _simulationTickRemainder = 0;
+        }
     }
 
     public void RestoreCeladonAlternateLevelsIfUnlocked()
@@ -128,39 +191,140 @@ public sealed class GameSession
 
     public TrainerBarConfig GetTrainerBarConfig(string trainerId) => _trainerBarConfigs[trainerId];
 
+    public double GetSpeciesProgressRequired(SpeciesBarConfig config, int level)
+    {
+        if (_speciesProgressRequiredCache.TryGetValue(config.SpeciesRootName, out var cached)
+            && cached.Level == level)
+        {
+            return cached.Required;
+        }
+
+        var required = TrainingSimulator.GetSpeciesProgressRequired(config, level);
+        _speciesProgressRequiredCache[config.SpeciesRootName] = (level, required);
+        return required;
+    }
+
+    public double GetTrainerProgressRequired(TrainerBarConfig config, int level)
+    {
+        if (_trainerProgressRequiredCache.TryGetValue(config.TrainerId, out var cached)
+            && cached.Level == level)
+        {
+            return cached.Required;
+        }
+
+        var required = TrainingSimulator.GetTrainerProgressRequired(config, level);
+        _trainerProgressRequiredCache[config.TrainerId] = (level, required);
+        return required;
+    }
+
     public SpeciesProgress GetSpecies(string speciesRootName) => State.SpeciesByRoot[speciesRootName];
 
     public TrainerProgress GetTrainer(string trainerId) => State.TrainersById[trainerId];
+
+    public TrainerProgress? GetActiveTrainerProgress() =>
+        _activeTrainerBarConfig is null ? null : GetTrainer(_activeTrainerBarConfig.TrainerId);
 
     public int GetTypeCounterCount(string typeKey) =>
         State.TypeCounterCounts.TryGetValue(typeKey, out var count) ? count : 0;
 
     public void SelectRoute(string routeId) => State.SelectedRouteId = routeId;
 
-    public void Tick()
+    public void Tick() => AdvanceTicks(1);
+
+    private long AdvanceTicks(long tickCount)
     {
-        foreach (var config in _speciesBarConfigs.Values)
+        var processedTicks = 0L;
+        _simulationSpeciesProgressChanged.Clear();
+        _simulationSpeciesLevelChanged.Clear();
+        _simulationTrainerProgressChanged.Clear();
+        _simulationTrainerLevelChanged.Clear();
+        BeginNotificationBatch();
+        try
         {
-            var progress = GetSpecies(config.SpeciesRootName);
-            if (progress.IsTraining || progress.IsCatching)
+            while (tickCount-- > 0 && HasActiveBars())
             {
-                TrainingSimulator.TickSpecies(this, progress, config);
+                processedTicks++;
+                var activeSpecies = _activeSpeciesBarConfigs;
+                foreach (var config in activeSpecies)
+                {
+                    var progress = GetSpecies(config.SpeciesRootName);
+                    var change = TrainingSimulator.TickSpeciesDeferred(this, progress, config);
+                    if (change.ProgressChanged)
+                    {
+                        _simulationSpeciesProgressChanged.Add(progress);
+                    }
+
+                    if (change.LevelChanged)
+                    {
+                        _simulationSpeciesLevelChanged.Add(progress);
+                    }
+                }
+
+                var trainerConfig = _activeTrainerBarConfig;
+                if (trainerConfig is not null)
+                {
+                    var progress = GetTrainer(trainerConfig.TrainerId);
+                    var change = TrainingSimulator.TickTrainerDeferred(this, progress, trainerConfig);
+                    if (change.ProgressChanged)
+                    {
+                        _simulationTrainerProgressChanged.Add(progress);
+                    }
+
+                    if (change.LevelChanged)
+                    {
+                        _simulationTrainerLevelChanged.Add(progress);
+                    }
+                }
             }
+        }
+        finally
+        {
+            PublishSimulationChanges();
+            EndNotificationBatch();
         }
 
-        foreach (var config in _trainerBarConfigs.Values)
-        {
-            var progress = GetTrainer(config.TrainerId);
-            if (progress.IsTraining)
-            {
-                TrainingSimulator.TickTrainer(this, progress, config);
-            }
-        }
+        return processedTicks;
     }
 
-    public bool HasActiveBars() =>
-        State.SpeciesByRoot.Values.Any(progress => progress.IsTraining || progress.IsCatching)
-        || State.TrainersById.Values.Any(progress => progress.IsTraining);
+    private void PublishSimulationChanges()
+    {
+        foreach (var progress in _simulationSpeciesProgressChanged)
+        {
+            progress.PublishSimulationChanges(
+                _simulationSpeciesLevelChanged.Contains(progress),
+                progressChanged: true);
+        }
+
+        foreach (var progress in _simulationSpeciesLevelChanged)
+        {
+            if (!_simulationSpeciesProgressChanged.Contains(progress))
+            {
+                progress.PublishSimulationChanges(levelChanged: true, progressChanged: false);
+            }
+        }
+
+        foreach (var progress in _simulationTrainerProgressChanged)
+        {
+            progress.PublishSimulationChanges(
+                _simulationTrainerLevelChanged.Contains(progress),
+                progressChanged: true);
+        }
+
+        foreach (var progress in _simulationTrainerLevelChanged)
+        {
+            if (!_simulationTrainerProgressChanged.Contains(progress))
+            {
+                progress.PublishSimulationChanges(levelChanged: true, progressChanged: false);
+            }
+        }
+
+        _simulationSpeciesProgressChanged.Clear();
+        _simulationSpeciesLevelChanged.Clear();
+        _simulationTrainerProgressChanged.Clear();
+        _simulationTrainerLevelChanged.Clear();
+    }
+
+    public bool HasActiveBars() => _activeSpeciesBarConfigs.Length > 0 || _activeTrainerBarConfig is not null;
 
     public void ToggleSpeciesActivity(string speciesRootName, bool catchMode)
     {
@@ -212,6 +376,7 @@ public sealed class GameSession
 
     internal void NotifySpeciesLevelChanged(string speciesRootName)
     {
+        _speedCachesDirty = true;
         var progress = GetSpecies(speciesRootName);
         if (progress.Level >= 1 && progress.IsCatching)
         {
@@ -220,13 +385,29 @@ public sealed class GameSession
         }
 
         TryUnlockCeladonAlternateEeveelutions(speciesRootName);
+        if (_notificationBatchDepth > 0)
+        {
+            _pendingSpeciesLevelChanges.Add(speciesRootName);
+            _pendingProgressionChanged = true;
+            return;
+        }
+
         SpeciesLevelChanged?.Invoke(speciesRootName);
         ProgressionChanged?.Invoke();
     }
 
     internal void NotifyTrainerLevelChanged(string trainerId)
     {
+        _speedCachesDirty = true;
         GrantPokedollarsForTrainerClear(trainerId);
+        if (_notificationBatchDepth > 0)
+        {
+            _pendingTrainerLevelChanged = true;
+            _pendingProgressionChanged = true;
+            _pendingShopStateChanged = true;
+            return;
+        }
+
         TrainerLevelChanged?.Invoke();
         ProgressionChanged?.Invoke();
         ShopStateChanged?.Invoke();
@@ -269,7 +450,15 @@ public sealed class GameSession
 
         if (any)
         {
-            TypeCountersChanged?.Invoke();
+            _speedCachesDirty = true;
+            if (_notificationBatchDepth > 0)
+            {
+                _pendingTypeCountersChanged = true;
+            }
+            else
+            {
+                TypeCountersChanged?.Invoke();
+            }
         }
     }
 
@@ -277,36 +466,58 @@ public sealed class GameSession
     {
         var progress = GetSpecies(speciesRootName);
         var config = GetSpeciesBarConfig(speciesRootName);
-        TrainingSimulator.GrantSpeciesLevelsWithTypePoints(this, progress, config, targetLevel);
+        BeginNotificationBatch();
+        try
+        {
+            TrainingSimulator.GrantSpeciesLevelsWithTypePoints(this, progress, config, targetLevel);
+        }
+        finally
+        {
+            EndNotificationBatch();
+        }
     }
 
-    public bool QualifiesForFirstCatchSpeedBonus() =>
-        !State.SpeciesByRoot.Values.Any(progress =>
-            progress.Level >= GameBalance.Routes.MinPokemonLevelToPassRoute);
+    public bool QualifiesForFirstCatchSpeedBonus()
+    {
+        EnsureSpeedCaches();
+        return _cachedQualifiesForFirstCatchBonus;
+    }
 
     public double GetBattleSpeedFromTypeLevels()
     {
-        var sum = State.TypeCounterCounts.Values.Sum();
-        var multiplier = GameBalance.Battles.BattleSpeedMultiplierBaseline
-            + sum * GameBalance.Battles.BattleSpeedBonusPerTotalTypeLevel;
-        multiplier *= ShopRules.XItemBattleMultiplier(State);
-        return Math.Min(multiplier, GameBalance.Battles.BattleSpeedMultiplierCap);
+        EnsureSpeedCaches();
+        return _cachedBattleSpeed;
     }
 
-    public double GetPokemonTrainingSpeedFromBattleClears() => RouteGymTrainingSpeedMultiplier;
+    public double GetPokemonTrainingSpeedFromBattleClears()
+    {
+        EnsureSpeedCaches();
+        return _cachedPokemonTrainingSpeed;
+    }
 
     public double GetPokemonCatchSpeedFromBattleClears()
     {
-        var training = RouteGymTrainingSpeedMultiplier;
-        var baseline = GameBalance.Battles.RouteTrainingSpeedMultiplierBaseline;
-        var gymBonusAboveBaseline = Math.Max(0, training - baseline);
-        return baseline + gymBonusAboveBaseline * GameBalance.Battles.RouteCatchFractionOfTrainingGymBonus;
+        EnsureSpeedCaches();
+        return _cachedPokemonCatchSpeed;
     }
 
-    public double GetBestOwnedBallCatchMultiplier() => ShopRules.BestOwnedBallCatchMultiplier(State);
+    public double GetBestOwnedBallCatchMultiplier()
+    {
+        EnsureSpeedCaches();
+        return _cachedBestBallMultiplier;
+    }
 
-    public double GetVitaminTrainingMultiplier(string speciesRootName) =>
-        ShopRules.VitaminTrainingMultiplier(State, speciesRootName);
+    public double GetVitaminTrainingMultiplier(string speciesRootName)
+    {
+        if (_vitaminTrainingMultiplierCache.TryGetValue(speciesRootName, out var multiplier))
+        {
+            return multiplier;
+        }
+
+        multiplier = ShopRules.VitaminTrainingMultiplier(State, speciesRootName);
+        _vitaminTrainingMultiplierCache[speciesRootName] = multiplier;
+        return multiplier;
+    }
 
     public bool IsShopVisible(string shopId) => ShopRules.IsShopVisible(State, shopId);
 
@@ -325,6 +536,7 @@ public sealed class GameSession
             return false;
         }
 
+        _speedCachesDirty = true;
         ShopStateChanged?.Invoke();
         return true;
     }
@@ -347,8 +559,21 @@ public sealed class GameSession
             return false;
         }
 
+        _vitaminTrainingMultiplierCache.Remove(speciesRootName);
         ShopStateChanged?.Invoke();
         return true;
+    }
+
+    public int TryApplyMaxVitamins(string speciesRootName)
+    {
+        var applied = ShopRules.TryApplyMaxVitamins(State, speciesRootName);
+        if (applied > 0)
+        {
+            _vitaminTrainingMultiplierCache.Remove(speciesRootName);
+            ShopStateChanged?.Invoke();
+        }
+
+        return applied;
     }
 
     public bool CanChampionReset() =>
@@ -444,16 +669,13 @@ public sealed class GameSession
         State.OwnedShopItemIds.Clear();
         // UnassignedVitaminCount, VitaminApplySectionUnlocked, and VitaminDosesBySpeciesRoot persist across prestige.
 
-        foreach (var speciesRoot in State.SpeciesByRoot.Keys)
-        {
-            SpeciesLevelChanged?.Invoke(speciesRoot);
-        }
-
+        InvalidateRuntimeCaches();
+        SpeciesLevelChanged?.Invoke(string.Empty);
         TrainerLevelChanged?.Invoke();
         TypeCountersChanged?.Invoke();
         ProgressionChanged?.Invoke();
         NotifyActiveBarsChanged();
-        BankTimeChanged?.Invoke();
+        NotifyBankTimeChanged(force: true);
         ShopStateChanged?.Invoke();
     }
 
@@ -491,6 +713,96 @@ public sealed class GameSession
         }
 
         return Math.Min(baseline + bonus, cap);
+    }
+
+    private void EnsureSpeedCaches()
+    {
+        if (!_speedCachesDirty)
+        {
+            return;
+        }
+
+        _cachedPokemonTrainingSpeed = SpeedMultiplierFromBattleClears(
+            GameBalance.Battles.RouteTrainingBonusPerClearByTrainerIndex,
+            GameBalance.Battles.RouteTrainingSpeedMultiplierBaseline,
+            GameBalance.Battles.RouteTrainingSpeedMultiplierCap);
+        var gymBonusAboveBaseline = Math.Max(
+            0,
+            _cachedPokemonTrainingSpeed - GameBalance.Battles.RouteTrainingSpeedMultiplierBaseline);
+        _cachedPokemonCatchSpeed = GameBalance.Battles.RouteTrainingSpeedMultiplierBaseline
+            + gymBonusAboveBaseline * GameBalance.Battles.RouteCatchFractionOfTrainingGymBonus;
+
+        var typeLevelSum = State.TypeCounterCounts.Values.Sum();
+        var battleMultiplier = GameBalance.Battles.BattleSpeedMultiplierBaseline
+            + typeLevelSum * GameBalance.Battles.BattleSpeedBonusPerTotalTypeLevel;
+        battleMultiplier *= ShopRules.XItemBattleMultiplier(State);
+        _cachedBattleSpeed = Math.Min(battleMultiplier, GameBalance.Battles.BattleSpeedMultiplierCap);
+        _cachedBestBallMultiplier = ShopRules.BestOwnedBallCatchMultiplier(State);
+        _cachedQualifiesForFirstCatchBonus = !State.SpeciesByRoot.Values.Any(progress =>
+            progress.Level >= GameBalance.Routes.MinPokemonLevelToPassRoute);
+        _speedCachesDirty = false;
+    }
+
+    private void InvalidateRuntimeCaches()
+    {
+        _speciesProgressRequiredCache.Clear();
+        _trainerProgressRequiredCache.Clear();
+        _vitaminTrainingMultiplierCache.Clear();
+        _speedCachesDirty = true;
+        _simulationTickRemainder = 0;
+    }
+
+    private void BeginNotificationBatch() => _notificationBatchDepth++;
+
+    private void EndNotificationBatch()
+    {
+        _notificationBatchDepth--;
+        if (_notificationBatchDepth > 0)
+        {
+            return;
+        }
+
+        if (_notificationBatchDepth < 0)
+        {
+            _notificationBatchDepth = 0;
+            throw new InvalidOperationException("Notification batch depth became unbalanced.");
+        }
+
+        var speciesChanges = _pendingSpeciesLevelChanges.ToArray();
+        var trainerChanged = _pendingTrainerLevelChanged;
+        var typeCountersChanged = _pendingTypeCountersChanged;
+        var progressionChanged = _pendingProgressionChanged;
+        var shopChanged = _pendingShopStateChanged;
+        _pendingSpeciesLevelChanges.Clear();
+        _pendingTrainerLevelChanged = false;
+        _pendingTypeCountersChanged = false;
+        _pendingProgressionChanged = false;
+        _pendingShopStateChanged = false;
+
+        if (typeCountersChanged)
+        {
+            TypeCountersChanged?.Invoke();
+        }
+
+        foreach (var speciesRoot in speciesChanges)
+        {
+            SpeciesLevelChanged?.Invoke(speciesRoot);
+        }
+
+        if (trainerChanged)
+        {
+            TrainerLevelChanged?.Invoke();
+        }
+
+        if (progressionChanged)
+        {
+            ProgressionChanged?.Invoke();
+        }
+
+        if (shopChanged)
+        {
+            ShopStateChanged?.Invoke();
+        }
     }
 
     private static double BonusWeightForTrainer(double[] weights, int trainerIndexZeroBased)
@@ -608,7 +920,43 @@ public sealed class GameSession
         }
     }
 
-    private void NotifyActiveBarsChanged() => ActiveBarsChanged?.Invoke();
+    private void NotifyActiveBarsChanged()
+    {
+        var activeSpecies = new List<SpeciesBarConfig>();
+        foreach (var config in _speciesBarConfigs.Values)
+        {
+            var progress = GetSpecies(config.SpeciesRootName);
+            if (progress.IsTraining || progress.IsCatching)
+            {
+                activeSpecies.Add(config);
+            }
+        }
+
+        _activeSpeciesBarConfigs = activeSpecies.ToArray();
+        _activeTrainerBarConfig = null;
+        foreach (var config in _trainerBarConfigs.Values)
+        {
+            if (GetTrainer(config.TrainerId).IsTraining)
+            {
+                _activeTrainerBarConfig = config;
+                break;
+            }
+        }
+
+        ActiveBarsChanged?.Invoke();
+    }
+
+    private void NotifyBankTimeChanged(bool force = false)
+    {
+        var displayedSeconds = (int)Math.Ceiling(Math.Max(0, State.BankTimeSeconds));
+        if (!force && displayedSeconds == _lastNotifiedBankSeconds)
+        {
+            return;
+        }
+
+        _lastNotifiedBankSeconds = displayedSeconds;
+        BankTimeChanged?.Invoke();
+    }
 
     /// <summary>Celadon: Flareon and Jolteon stay hidden until Eevee's bar reaches Vaporeon (level 25).</summary>
     private void TryUnlockCeladonAlternateEeveelutions(string speciesRootName)

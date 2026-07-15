@@ -1,6 +1,5 @@
 ﻿using Android.App;
 using Android.Content.PM;
-using Ascendex.Game.Save;
 using Avalonia;
 using Avalonia.Android;
 
@@ -22,7 +21,14 @@ public class MainActivity : AvaloniaMainActivity<App>
 
     protected override void OnPause()
     {
-        SaveGameService.FlushActiveSave();
+        (global::Avalonia.Application.Current as global::Ascendex.App)?.Suspend();
         base.OnPause();
     }
+
+    protected override void OnResume()
+    {
+        base.OnResume();
+        (global::Avalonia.Application.Current as global::Ascendex.App)?.Resume();
+    }
+
 }

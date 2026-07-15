@@ -36,13 +36,7 @@
         <TextBlock Text="{Binding SpeedBoostIndicatorText}" Foreground="{Binding SpeedBoostIndicatorForeground}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center"/>
       </Border>
 
-      <Panel Grid.Row="1">
-        <views:RoutesView IsVisible="{Binding IsRoutesTabSelected}" />
-        <views:BattlesView IsVisible="{Binding IsBattlesTabSelected}" />
-        <views:ShopView IsVisible="{Binding IsShopTabSelected}" />
-        <views:CollectionsView IsVisible="{Binding IsCollectionsTabSelected}" />
-        <views:PrestigeView IsVisible="{Binding IsPrestigeTabSelected}" />
-      </Panel>
+      <ContentControl x:Name="PageHost" Grid.Row="1"/>
 
       <Border Grid.Row="2" Background="#1A1D22" BorderBrush="#3F4450" BorderThickness="0,1,0,0" Padding="0,8">
         <Grid ColumnDefinitions="*,*,*,*,*">

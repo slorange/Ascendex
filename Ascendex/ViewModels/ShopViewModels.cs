@@ -133,6 +133,7 @@ public sealed class VitaminTargetViewModel : ViewModelBase
         _session = session;
         _onChanged = onChanged;
         ApplyCommand = new RelayCommand(Apply, () => CanApply);
+        ApplyMaxCommand = new RelayCommand(ApplyMax, () => CanApply);
         Refresh();
     }
 
@@ -150,6 +151,8 @@ public sealed class VitaminTargetViewModel : ViewModelBase
 
     public IRelayCommand ApplyCommand { get; }
 
+    public IRelayCommand ApplyMaxCommand { get; }
+
     public int Doses
     {
         get => _doses;
@@ -164,6 +167,7 @@ public sealed class VitaminTargetViewModel : ViewModelBase
             if (SetProperty(ref _canApply, value))
             {
                 ApplyCommand.NotifyCanExecuteChanged();
+                ApplyMaxCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -189,6 +193,14 @@ public sealed class VitaminTargetViewModel : ViewModelBase
     private void Apply()
     {
         if (_session.TryApplyVitamin(SpeciesRootName))
+        {
+            _onChanged();
+        }
+    }
+
+    private void ApplyMax()
+    {
+        if (_session.TryApplyMaxVitamins(SpeciesRootName) > 0)
         {
             _onChanged();
         }

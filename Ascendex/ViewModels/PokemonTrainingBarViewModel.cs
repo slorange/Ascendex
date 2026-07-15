@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using Ascendex.Game;
 using Ascendex.Game.Content;
@@ -13,6 +14,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     private static readonly IBrush IdleBorderBrush = Brush.Parse("#5F6470");
     private static readonly IBrush ActiveBorderBrush = Brushes.White;
     private static readonly TimeSpan TrainingTickInterval = TimeSpan.FromMilliseconds(GameBalance.Training.TickIntervalMilliseconds);
+    private static readonly Dictionary<string, IBrush> BrushCache = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly GameSession _session;
     private readonly IBarProgressState _progress;
@@ -21,6 +23,11 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
     private readonly TrainerBarConfig? _trainerConfig;
     private readonly Action<PokemonTrainingBarViewModel> _toggleTrainingRequested;
     private readonly EvolutionStage[]? _evolutionChain;
+    private double _progressRequired;
+    private double _effectiveProgressPerTick;
+    private double _visualProgressFraction;
+    private string _timeRemainingText = "0s";
+    private int _activeEvolutionStageIndex = -1;
 
     public PokemonTrainingBarViewModel(
         GameSession session,
@@ -47,10 +54,11 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         {
             Name = speciesProgress.SpeciesRootName;
             TypeKey = typeKey;
-            NormalBrush = Brush.Parse(ResolveBarColorHex(speciesProgress.SpeciesRootName, normalColor, string.Empty));
+            NormalBrush = GetBrush(ResolveBarColorHex(speciesProgress.SpeciesRootName, normalColor, string.Empty));
         }
 
-        NotifyProgressDerivedPropertiesChanged();
+        RefreshProgressRequirement();
+        RefreshCachedRateAndPresentation(refreshTimeText: true);
     }
 
     public PokemonTrainingBarViewModel(
@@ -69,10 +77,11 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         SpeciesLineRoot = displayName;
         Name = displayName;
         TypeKey = typeKey;
-        NormalBrush = Brush.Parse(normalColor);
+        NormalBrush = GetBrush(normalColor);
 
         _progress.PropertyChanged += OnProgressStateChanged;
-        NotifyProgressDerivedPropertiesChanged();
+        RefreshProgressRequirement();
+        RefreshCachedRateAndPresentation(refreshTimeText: true);
     }
 
     public string Name { get; private set; } = string.Empty;
@@ -102,16 +111,13 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         set => _progress.IsVisible = value;
     }
 
-    public double ProgressRequired => _speciesConfig != null
-        ? TrainingSimulator.GetSpeciesProgressRequired(_speciesConfig, Level)
-        : TrainingSimulator.GetTrainerProgressRequired(_trainerConfig!, Level);
+    public double ProgressRequired => _progressRequired;
 
     public double ProgressFraction => ProgressRequired == 0 ? 0 : Progress / ProgressRequired;
 
-    public double VisualProgressFraction =>
-        IsUltraFastTrainingPace() && IsActivityActive ? 1.0 : ProgressFraction;
+    public double VisualProgressFraction => _visualProgressFraction;
 
-    public string TimeRemainingText => FormatTimeRemaining();
+    public string TimeRemainingText => _timeRemainingText;
 
     public bool IsActivityActive => IsTraining || IsCatching;
 
@@ -135,37 +141,45 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         switch (e.PropertyName)
         {
             case nameof(IBarProgressState.Level):
+                OnPropertyChanged(nameof(Level));
+                RefreshProgressRequirement(notify: true);
                 ApplyEvolutionStageForCurrentLevel();
                 NotifyLevelBadgeVisibilityChanged();
+                OnPropertyChanged(nameof(CanCatch));
+                OnPropertyChanged(nameof(ProgressFraction));
+                RefreshCachedRateAndPresentation(refreshTimeText: true);
                 break;
             case nameof(IBarProgressState.Progress):
+                OnPropertyChanged(nameof(Progress));
+                OnPropertyChanged(nameof(ProgressFraction));
+                RefreshVisualProgress();
+                break;
             case nameof(IBarProgressState.IsTraining):
+                OnPropertyChanged(nameof(IsTraining));
+                NotifyActivityChanged();
+                RefreshCachedRateAndPresentation(refreshTimeText: true);
+                break;
             case nameof(SpeciesProgress.IsCatching):
+                OnPropertyChanged(nameof(IsCatching));
+                NotifyActivityChanged();
+                NotifyLevelBadgeVisibilityChanged();
+                RefreshCachedRateAndPresentation(refreshTimeText: true);
+                break;
             case nameof(SpeciesProgress.IsShiny):
+                OnPropertyChanged(nameof(ShowShinyIcon));
+                ApplyBarColorForCurrentStage();
+                break;
             case nameof(IBarProgressState.IsVisible):
-                if (e.PropertyName is nameof(IBarProgressState.IsTraining) or nameof(SpeciesProgress.IsCatching))
+                OnPropertyChanged(nameof(IsVisible));
+                break;
+            default:
+                if (!string.IsNullOrEmpty(e.PropertyName))
                 {
-                    OnPropertyChanged(nameof(IsActivityActive));
-                    OnPropertyChanged(nameof(TrainingBorderThickness));
-                    OnPropertyChanged(nameof(TrainingBorderBrush));
-                }
-
-                if (e.PropertyName is nameof(SpeciesProgress.IsCatching))
-                {
-                    NotifyLevelBadgeVisibilityChanged();
-                }
-
-                if (e.PropertyName is nameof(SpeciesProgress.IsShiny))
-                {
-                    OnPropertyChanged(nameof(ShowShinyIcon));
-                    ApplyBarColorForCurrentStage();
+                    OnPropertyChanged(e.PropertyName);
                 }
 
                 break;
         }
-
-        OnPropertyChanged(e.PropertyName!);
-        NotifyProgressDerivedPropertiesChanged();
     }
 
     private void NotifyLevelBadgeVisibilityChanged()
@@ -174,12 +188,11 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowCatchingPokeball));
     }
 
-    private void NotifyProgressDerivedPropertiesChanged()
+    private void NotifyActivityChanged()
     {
-        OnPropertyChanged(nameof(ProgressRequired));
-        OnPropertyChanged(nameof(ProgressFraction));
-        OnPropertyChanged(nameof(VisualProgressFraction));
-        OnPropertyChanged(nameof(TimeRemainingText));
+        OnPropertyChanged(nameof(IsActivityActive));
+        OnPropertyChanged(nameof(TrainingBorderThickness));
+        OnPropertyChanged(nameof(TrainingBorderBrush));
     }
 
     private void ApplyEvolutionStageForCurrentLevel()
@@ -189,6 +202,13 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             return;
         }
 
+        var stageIndex = TrainingSimulator.GetActiveStageIndexZeroBased(_evolutionChain!, Level);
+        if (_activeEvolutionStageIndex == stageIndex)
+        {
+            return;
+        }
+
+        _activeEvolutionStageIndex = stageIndex;
         Name = stage.Name;
         TypeKey = stage.TypeKey;
         ApplyBarColorForCurrentStage(stage);
@@ -222,8 +242,12 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             return;
         }
 
-        NormalBrush = Brush.Parse(colorHex);
-        OnPropertyChanged(nameof(NormalBrush));
+        var brush = GetBrush(colorHex);
+        if (!ReferenceEquals(NormalBrush, brush))
+        {
+            NormalBrush = brush;
+            OnPropertyChanged(nameof(NormalBrush));
+        }
     }
 
     private string ResolveBarColorHex(string speciesName, string normalColor, string shinyColor)
@@ -248,8 +272,7 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     public void NotifyTimeRemainingChanged()
     {
-        OnPropertyChanged(nameof(TimeRemainingText));
-        OnPropertyChanged(nameof(VisualProgressFraction));
+        RefreshCachedRateAndPresentation(refreshTimeText: true);
     }
 
     private double GetEffectiveProgressPerTick()
@@ -269,20 +292,18 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
 
     private bool IsUltraFastTrainingPace()
     {
-        var effectivePerTick = GetEffectiveProgressPerTick();
-        if (ProgressRequired <= 0 || effectivePerTick <= 0)
+        if (_progressRequired <= 0 || _effectiveProgressPerTick <= 0)
         {
             return false;
         }
 
-        var fullBarMs = ProgressRequired / effectivePerTick * TrainingTickInterval.TotalMilliseconds;
+        var fullBarMs = _progressRequired / _effectiveProgressPerTick * TrainingTickInterval.TotalMilliseconds;
         return fullBarMs < MagicNumbersUI.TimeRemaining.UltraFastFullBarMaxDurationSeconds * 1000.0;
     }
 
     private string FormatTimeRemaining()
     {
-        var effectivePerTick = GetEffectiveProgressPerTick();
-        if (ProgressRequired <= 0 || effectivePerTick <= 0)
+        if (_progressRequired <= 0 || _effectiveProgressPerTick <= 0)
         {
             return "0s";
         }
@@ -292,8 +313,8 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
             return "0s";
         }
 
-        var remainingProgress = Math.Max(0, ProgressRequired - Progress);
-        var remainingMilliseconds = remainingProgress / effectivePerTick * TrainingTickInterval.TotalMilliseconds;
+        var remainingProgress = Math.Max(0, _progressRequired - Progress);
+        var remainingMilliseconds = remainingProgress / _effectiveProgressPerTick * TrainingTickInterval.TotalMilliseconds;
         var remaining = TimeSpan.FromMilliseconds(remainingMilliseconds);
         var totalSeconds = (int)Math.Ceiling(Math.Max(0, remaining.TotalSeconds));
 
@@ -303,5 +324,54 @@ public partial class PokemonTrainingBarViewModel : ViewModelBase
         }
 
         return $"{totalSeconds}s";
+    }
+
+    private void RefreshProgressRequirement(bool notify = false)
+    {
+        _progressRequired = _speciesConfig != null
+            ? _session.GetSpeciesProgressRequired(_speciesConfig, Level)
+            : _session.GetTrainerProgressRequired(_trainerConfig!, Level);
+        if (notify)
+        {
+            OnPropertyChanged(nameof(ProgressRequired));
+        }
+    }
+
+    private void RefreshCachedRateAndPresentation(bool refreshTimeText)
+    {
+        _effectiveProgressPerTick = GetEffectiveProgressPerTick();
+        RefreshVisualProgress();
+        if (refreshTimeText)
+        {
+            var next = FormatTimeRemaining();
+            if (_timeRemainingText != next)
+            {
+                _timeRemainingText = next;
+                OnPropertyChanged(nameof(TimeRemainingText));
+            }
+        }
+    }
+
+    private void RefreshVisualProgress()
+    {
+        var next = IsUltraFastTrainingPace() && IsActivityActive ? 1.0 : ProgressFraction;
+        if (Math.Abs(_visualProgressFraction - next) < double.Epsilon)
+        {
+            return;
+        }
+
+        _visualProgressFraction = next;
+        OnPropertyChanged(nameof(VisualProgressFraction));
+    }
+
+    private static IBrush GetBrush(string colorHex)
+    {
+        if (!BrushCache.TryGetValue(colorHex, out var brush))
+        {
+            brush = Brush.Parse(colorHex);
+            BrushCache[colorHex] = brush;
+        }
+
+        return brush;
     }
 }

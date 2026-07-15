@@ -44,10 +44,11 @@
           <ItemsControl ItemsSource="{Binding VitaminTargets}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:VitaminTargetViewModel">
-                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,4">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,4">
                   <TextBlock Text="{Binding DisplayName}" Foreground="White" FontSize="14" VerticalAlignment="Center"/>
                   <TextBlock Grid.Column="1" Text="{Binding DosesText}" Foreground="#B8C0CC" FontSize="13" Margin="8,0" VerticalAlignment="Center"/>
                   <Button Grid.Column="2" Content="Apply" Command="{Binding ApplyCommand}" IsEnabled="{Binding CanApply}" Background="#3A5D7A" Foreground="White" Padding="10,4"/>
+                  <Button Grid.Column="3" Content="Max" Command="{Binding ApplyMaxCommand}" IsEnabled="{Binding CanApply}" Background="#3A5D7A" Foreground="White" Padding="10,4" Margin="6,0,0,0"/>
                 </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

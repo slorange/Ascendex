@@ -11,6 +11,7 @@ public sealed class SaveGameService : IDisposable
     private GameSession? _session;
     private Func<int>? _getSelectedMainTab;
     private Timer? _autoSaveTimer;
+    private bool _autoSaveSuspended;
 
     public SaveGameService(SaveGameStore? store = null, SaveGameSettings? settings = null)
     {
@@ -59,13 +60,26 @@ public sealed class SaveGameService : IDisposable
         _session = session;
         _getSelectedMainTab = getSelectedMainTab;
         _activeInstance = this;
+        _autoSaveSuspended = false;
+        StartAutoSaveTimer();
+    }
 
-        var interval = _settings.AutoSaveInterval;
-        _autoSaveTimer = new Timer(
-            static state => ((SaveGameService)state!).SaveNow(),
-            this,
-            interval,
-            interval);
+    public void SuspendAutoSave()
+    {
+        _autoSaveSuspended = true;
+        _autoSaveTimer?.Dispose();
+        _autoSaveTimer = null;
+    }
+
+    public void ResumeAutoSave()
+    {
+        if (!_autoSaveSuspended)
+        {
+            return;
+        }
+
+        _autoSaveSuspended = false;
+        StartAutoSaveTimer();
     }
 
     public void SaveNow()
@@ -96,6 +110,7 @@ public sealed class SaveGameService : IDisposable
 
         _autoSaveTimer?.Dispose();
         _autoSaveTimer = null;
+        _autoSaveSuspended = false;
         _session = null;
         _getSelectedMainTab = null;
     }
@@ -109,6 +124,21 @@ public sealed class SaveGameService : IDisposable
 
         var data = SaveGameMapper.ToSaveData(_session.State, ClampTab(_getSelectedMainTab()));
         _store.Save(data);
+    }
+
+    private void StartAutoSaveTimer()
+    {
+        if (_autoSaveSuspended || _session is null || _getSelectedMainTab is null || _autoSaveTimer is not null)
+        {
+            return;
+        }
+
+        var interval = _settings.AutoSaveInterval;
+        _autoSaveTimer = new Timer(
+            static state => ((SaveGameService)state!).SaveNow(),
+            this,
+            interval,
+            interval);
     }
 
     private static int ClampTab(int tab) => Math.Clamp(tab, 0, 4);

@@ -11,6 +11,8 @@ namespace Ascendex;
 
 public partial class App : Application
 {
+    public MainViewModel? MainViewModel { get; private set; }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -21,21 +23,27 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             DisableAvaloniaDataAnnotationValidation();
+            MainViewModel = ViewModels.MainViewModel.Create();
             desktop.MainWindow = new MainWindow
             {
-                DataContext = MainViewModel.Create(),
+                DataContext = MainViewModel,
             };
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
+            MainViewModel = ViewModels.MainViewModel.Create();
             singleViewPlatform.MainView = new MainView
             {
-                DataContext = MainViewModel.Create(),
+                DataContext = MainViewModel,
             };
         }
 
         base.OnFrameworkInitializationCompleted();
     }
+
+    public void Suspend() => MainViewModel?.Suspend();
+
+    public void Resume() => MainViewModel?.Resume();
 
     private void DisableAvaloniaDataAnnotationValidation()
     {

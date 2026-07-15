@@ -15,51 +15,103 @@ public static class TrainingSimulator
     public static double GetTrainerProgressRequired(TrainerBarConfig config, int level) =>
         GetProgressRequired(config.BaseProgressRequired, config.ProgressRequiredPerLevelExponent, level);
 
-    public static void TickSpecies(GameSession session, SpeciesProgress progress, SpeciesBarConfig config)
+    public static void TickSpecies(GameSession session, SpeciesProgress progress, SpeciesBarConfig config) =>
+        AdvanceSpecies(session, progress, config, 1);
+
+    public static void AdvanceSpecies(
+        GameSession session,
+        SpeciesProgress progress,
+        SpeciesBarConfig config,
+        long tickCount)
+    {
+        var progressChanged = false;
+        var levelChanged = false;
+        while (tickCount-- > 0 && (progress.IsTraining || progress.IsCatching))
+        {
+            var change = TickSpeciesDeferred(session, progress, config);
+            progressChanged |= change.ProgressChanged;
+            levelChanged |= change.LevelChanged;
+        }
+
+        progress.PublishSimulationChanges(levelChanged, progressChanged);
+    }
+
+    internal static (bool ProgressChanged, bool LevelChanged) TickSpeciesDeferred(
+        GameSession session,
+        SpeciesProgress progress,
+        SpeciesBarConfig config)
     {
         if (!progress.IsTraining && !progress.IsCatching)
         {
-            return;
+            return default;
         }
 
-        var progressRequired = GetSpeciesProgressRequired(config, progress.Level);
-        if (progressRequired <= 0)
+        var progressRequired = session.GetSpeciesProgressRequired(config, progress.Level);
+        var progressPerTick = GetSpeciesProgressPerTick(session, progress, config);
+        if (progressRequired <= 0 || progressPerTick <= 0)
         {
-            return;
+            return default;
         }
 
-        progress.Progress += GetSpeciesProgressPerTick(session, progress, config);
-        if (progress.Progress < progressRequired)
+        var nextProgress = progress.Progress + progressPerTick;
+        if (nextProgress < progressRequired)
         {
-            return;
+            return (progress.SetSimulationProgress(nextProgress), false);
         }
 
-        progress.Progress = 0;
-        ApplySpeciesLevelUp(session, progress, config);
+        var progressChanged = progress.SetSimulationProgress(0);
+        ApplySpeciesLevelUp(session, progress, config, deferProgressNotifications: true);
+        return (progressChanged, true);
     }
 
-    public static void TickTrainer(GameSession session, TrainerProgress progress, TrainerBarConfig config)
+    public static void TickTrainer(GameSession session, TrainerProgress progress, TrainerBarConfig config) =>
+        AdvanceTrainer(session, progress, config, 1);
+
+    public static void AdvanceTrainer(
+        GameSession session,
+        TrainerProgress progress,
+        TrainerBarConfig config,
+        long tickCount)
+    {
+        var progressChanged = false;
+        var levelChanged = false;
+        while (tickCount-- > 0 && progress.IsTraining)
+        {
+            var change = TickTrainerDeferred(session, progress, config);
+            progressChanged |= change.ProgressChanged;
+            levelChanged |= change.LevelChanged;
+        }
+
+        progress.PublishSimulationChanges(levelChanged, progressChanged);
+    }
+
+    internal static (bool ProgressChanged, bool LevelChanged) TickTrainerDeferred(
+        GameSession session,
+        TrainerProgress progress,
+        TrainerBarConfig config)
     {
         if (!progress.IsTraining)
         {
-            return;
+            return default;
         }
 
-        var progressRequired = GetTrainerProgressRequired(config, progress.Level);
-        if (progressRequired <= 0)
+        var progressRequired = session.GetTrainerProgressRequired(config, progress.Level);
+        var progressPerTick = GetTrainerProgressPerTick(session, progress, config);
+        if (progressRequired <= 0 || progressPerTick <= 0)
         {
-            return;
+            return default;
         }
 
-        progress.Progress += GetTrainerProgressPerTick(session, progress, config);
-        if (progress.Progress < progressRequired)
+        var nextProgress = progress.Progress + progressPerTick;
+        if (nextProgress < progressRequired)
         {
-            return;
+            return (progress.SetSimulationProgress(nextProgress), false);
         }
 
-        progress.Progress = 0;
-        progress.Level++;
+        var progressChanged = progress.SetSimulationProgress(0);
+        progress.IncrementSimulationLevel();
         session.NotifyTrainerLevelChanged(progress.TrainerId);
+        return (progressChanged, true);
     }
 
     public static void GrantSpeciesLevelsWithTypePoints(
@@ -118,14 +170,25 @@ public static class TrainingSimulator
     public static double GetTrainerProgressPerTick(GameSession session, TrainerProgress progress, TrainerBarConfig config) =>
         GameBalance.Training.ProgressPerTick * ClampMultiplier(session.GetBattleSpeedFromTypeLevels());
 
-    private static void ApplySpeciesLevelUp(GameSession session, SpeciesProgress progress, SpeciesBarConfig config)
+    private static void ApplySpeciesLevelUp(
+        GameSession session,
+        SpeciesProgress progress,
+        SpeciesBarConfig config,
+        bool deferProgressNotifications)
     {
         var previousLevel = progress.Level;
         var chain = config.EvolutionChain;
         if (chain is { Length: > 0 })
         {
             var previousStageIndex = GetActiveStageIndexZeroBased(chain, progress.Level);
-            progress.Level++;
+            if (deferProgressNotifications)
+            {
+                progress.IncrementSimulationLevel();
+            }
+            else
+            {
+                progress.Level++;
+            }
             var newStageIndex = GetActiveStageIndexZeroBased(chain, progress.Level);
             if (newStageIndex > previousStageIndex && progress.IsVisible)
             {
@@ -141,7 +204,14 @@ public static class TrainingSimulator
         }
         else
         {
-            progress.Level++;
+            if (deferProgressNotifications)
+            {
+                progress.IncrementSimulationLevel();
+            }
+            else
+            {
+                progress.Level++;
+            }
         }
 
         RecordTypeContributionsForCurrentStage(session, progress, config);
