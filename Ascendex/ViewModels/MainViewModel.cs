@@ -70,8 +70,9 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         SelectRoutesTabCommand = new RelayCommand(() => SelectedMainTab = 0);
         SelectBattlesTabCommand = new RelayCommand(() => SelectedMainTab = 1);
-        SelectCollectionsTabCommand = new RelayCommand(() => SelectedMainTab = 2);
-        SelectPrestigeTabCommand = new RelayCommand(() => SelectedMainTab = 3);
+        SelectShopTabCommand = new RelayCommand(() => SelectedMainTab = 2);
+        SelectCollectionsTabCommand = new RelayCommand(() => SelectedMainTab = 3);
+        SelectPrestigeTabCommand = new RelayCommand(() => SelectedMainTab = 4);
         ChampionResetCommand = new RelayCommand(PerformChampionReset);
         PokedexResetCommand = new RelayCommand(PerformPokedexReset);
 
@@ -83,6 +84,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         PokemonBars = new ObservableCollection<PokemonTrainingBarViewModel>();
         BattleBars = new ObservableCollection<PokemonTrainingBarViewModel>();
         AreaSelectors = new ObservableCollection<AreaSelectionViewModel>();
+        ShopItems = new ObservableCollection<ShopItemRowViewModel>();
+        VitaminTargets = new ObservableCollection<VitaminTargetViewModel>();
         _allPokemonBars = new List<PokemonTrainingBarViewModel>();
         _allBattleBars = new List<PokemonTrainingBarViewModel>();
 
@@ -92,15 +95,18 @@ public class MainViewModel : ViewModelBase, IDisposable
         _session.ProgressionChanged += OnSessionProgressionChanged;
         _session.BankTimeChanged += OnSessionBankTimeChanged;
         _session.ActiveBarsChanged += OnSessionActiveBarsChanged;
+        _session.ShopStateChanged += OnSessionShopStateChanged;
 
         InitializeRoutes();
         InitializeBattles();
+        InitializeShop();
         UpdateProgressionVisibility();
         RestoreSelectedArea();
         InitializePokedex();
         InitializeBadges();
-        SelectedMainTab = Math.Clamp(selectedMainTab, 0, 3);
+        SelectedMainTab = Math.Clamp(selectedMainTab, 0, 4);
         RefreshPrestigeState();
+        RefreshShopState();
         RefreshBattlesTabProgressTracking();
         _saveService.BindAutoSave(_session, () => SelectedMainTab);
         RefreshSpeedBoostIndicator();
@@ -110,6 +116,8 @@ public class MainViewModel : ViewModelBase, IDisposable
     public IRelayCommand SelectRoutesTabCommand { get; }
 
     public IRelayCommand SelectBattlesTabCommand { get; }
+
+    public IRelayCommand SelectShopTabCommand { get; }
 
     public IRelayCommand SelectCollectionsTabCommand { get; }
 
@@ -124,14 +132,21 @@ public class MainViewModel : ViewModelBase, IDisposable
         get => _selectedMainTab;
         set
         {
+            if (!IsShopTabUnlocked && value == 2)
+            {
+                value = 0;
+            }
+
             if (SetProperty(ref _selectedMainTab, value))
             {
                 OnPropertyChanged(nameof(IsRoutesTabSelected));
                 OnPropertyChanged(nameof(IsBattlesTabSelected));
+                OnPropertyChanged(nameof(IsShopTabSelected));
                 OnPropertyChanged(nameof(IsCollectionsTabSelected));
                 OnPropertyChanged(nameof(IsPrestigeTabSelected));
                 OnPropertyChanged(nameof(RoutesTabBackground));
                 OnPropertyChanged(nameof(BattlesTabBackground));
+                OnPropertyChanged(nameof(ShopTabBackground));
                 OnPropertyChanged(nameof(CollectionsTabBackground));
                 OnPropertyChanged(nameof(PrestigeTabBackground));
             }
@@ -142,17 +157,21 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public bool IsBattlesTabSelected => _selectedMainTab == 1;
 
-    public bool IsCollectionsTabSelected => _selectedMainTab == 2;
+    public bool IsShopTabSelected => _selectedMainTab == 2;
 
-    public bool IsPrestigeTabSelected => _selectedMainTab == 3;
+    public bool IsCollectionsTabSelected => _selectedMainTab == 3;
+
+    public bool IsPrestigeTabSelected => _selectedMainTab == 4;
 
     public IBrush RoutesTabBackground => _selectedMainTab == 0 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
     public IBrush BattlesTabBackground => _selectedMainTab == 1 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
-    public IBrush CollectionsTabBackground => _selectedMainTab == 2 ? MainTabSelectedBrush : MainTabUnselectedBrush;
+    public IBrush ShopTabBackground => _selectedMainTab == 2 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
-    public IBrush PrestigeTabBackground => _selectedMainTab == 3 ? MainTabSelectedBrush : MainTabUnselectedBrush;
+    public IBrush CollectionsTabBackground => _selectedMainTab == 3 ? MainTabSelectedBrush : MainTabUnselectedBrush;
+
+    public IBrush PrestigeTabBackground => _selectedMainTab == 4 ? MainTabSelectedBrush : MainTabUnselectedBrush;
 
     public bool ShowRoutesTabPokeballIcon => !_session.AnySpeciesCatching();
 
@@ -210,6 +229,10 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<AreaSelectionViewModel> AreaSelectors { get; }
 
+    public ObservableCollection<ShopItemRowViewModel> ShopItems { get; }
+
+    public ObservableCollection<VitaminTargetViewModel> VitaminTargets { get; }
+
     public ObservableCollection<TypeCounterViewModel> TypeCounters { get; }
 
     public ObservableCollection<PokedexCellViewModel> PokedexCells { get; } = new();
@@ -225,6 +248,20 @@ public class MainViewModel : ViewModelBase, IDisposable
     public int ExpShareCount => _session.State.ExpShareCount;
 
     public int ShinyCharmCount => _session.State.ShinyCharmCount;
+
+    public long Pokedollars => _session.State.Pokedollars;
+
+    public string PokedollarsText => $"{Pokedollars:N0} ₽";
+
+    public int UnassignedVitaminCount => _session.State.UnassignedVitaminCount;
+
+    public bool HasUnassignedVitamins => UnassignedVitaminCount > 0;
+
+    public bool ShowVitaminApplySection => _session.State.VitaminApplySectionUnlocked;
+
+    public string UnassignedVitaminsText => $"Unassigned vitamins: {UnassignedVitaminCount}";
+
+    public bool IsShopTabUnlocked => _session.IsShopTabUnlocked();
 
     public bool CanChampionReset => _session.CanChampionReset();
 
@@ -268,6 +305,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         _session.ProgressionChanged -= OnSessionProgressionChanged;
         _session.BankTimeChanged -= OnSessionBankTimeChanged;
         _session.ActiveBarsChanged -= OnSessionActiveBarsChanged;
+        _session.ShopStateChanged -= OnSessionShopStateChanged;
         _tickLoop.Dispose();
         _saveService.Dispose();
     }
@@ -435,6 +473,8 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         RefreshBadgeSlots();
         RefreshPrestigeState();
+        RefreshShopState();
+        RefreshBattlesTabProgressTracking();
         NotifyAllBarsTimeRemainingChanged();
     }
 
@@ -447,7 +487,17 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void OnSessionProgressionChanged() => UpdateProgressionVisibility();
+    private void OnSessionShopStateChanged()
+    {
+        RefreshShopState();
+        NotifyAllBarsTimeRemainingChanged();
+    }
+
+    private void OnSessionProgressionChanged()
+    {
+        UpdateProgressionVisibility();
+        RefreshShopState();
+    }
 
     private void OnSessionBankTimeChanged() => RefreshSpeedBoostIndicatorThrottled();
 
@@ -537,8 +587,101 @@ public class MainViewModel : ViewModelBase, IDisposable
         RefreshBadgeSlots();
         RefreshSpeedBoostIndicator();
         RefreshPrestigeState();
+        RefreshShopState();
         NotifyAllBarsTimeRemainingChanged();
         _saveService.SaveNow();
+    }
+
+    private void InitializeShop()
+    {
+        ShopItems.Clear();
+        foreach (var (_, item) in KantoShopCatalog.EnumerateItems())
+        {
+            ShopItems.Add(new ShopItemRowViewModel(item, _session, RefreshShopState));
+        }
+
+        RefreshVitaminTargets();
+    }
+
+    private void RefreshShopState()
+    {
+        OnPropertyChanged(nameof(Pokedollars));
+        OnPropertyChanged(nameof(PokedollarsText));
+        OnPropertyChanged(nameof(UnassignedVitaminCount));
+        OnPropertyChanged(nameof(HasUnassignedVitamins));
+        OnPropertyChanged(nameof(ShowVitaminApplySection));
+        OnPropertyChanged(nameof(UnassignedVitaminsText));
+        OnPropertyChanged(nameof(IsShopTabUnlocked));
+
+        if (!IsShopTabUnlocked && SelectedMainTab == 2)
+        {
+            SelectedMainTab = 0;
+        }
+
+        foreach (var item in ShopItems)
+        {
+            item.Refresh();
+        }
+
+        RefreshVitaminTargets();
+    }
+
+    private void RefreshVitaminTargets()
+    {
+        var caught = _session.State.SpeciesByRoot.Values
+            .Where(progress => progress.Level >= GameBalance.Routes.MinPokemonLevelToPassRoute)
+            .Select(progress => progress.SpeciesRootName)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var orderedRoots = KantoShopCatalog.SpeciesRootsInVitaminApplyOrder()
+            .Where(caught.Contains)
+            .ToList();
+
+        for (var i = VitaminTargets.Count - 1; i >= 0; i--)
+        {
+            if (!orderedRoots.Contains(VitaminTargets[i].SpeciesRootName))
+            {
+                VitaminTargets.RemoveAt(i);
+            }
+        }
+
+        var existing = VitaminTargets.Select(target => target.SpeciesRootName).ToHashSet(StringComparer.Ordinal);
+        foreach (var root in orderedRoots)
+        {
+            if (!existing.Contains(root))
+            {
+                VitaminTargets.Add(new VitaminTargetViewModel(
+                    root,
+                    KantoShopCatalog.IsBossSpeciesRoot(root),
+                    _session,
+                    RefreshShopState));
+            }
+        }
+
+        // Keep collection order matching route order (normals then bosses).
+        for (var desiredIndex = 0; desiredIndex < orderedRoots.Count; desiredIndex++)
+        {
+            var root = orderedRoots[desiredIndex];
+            var currentIndex = -1;
+            for (var i = 0; i < VitaminTargets.Count; i++)
+            {
+                if (VitaminTargets[i].SpeciesRootName == root)
+                {
+                    currentIndex = i;
+                    break;
+                }
+            }
+
+            if (currentIndex >= 0 && currentIndex != desiredIndex)
+            {
+                VitaminTargets.Move(currentIndex, desiredIndex);
+            }
+        }
+
+        foreach (var target in VitaminTargets)
+        {
+            target.Refresh();
+        }
     }
 
     private void RefreshPrestigeState()

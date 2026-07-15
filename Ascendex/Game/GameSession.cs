@@ -25,6 +25,8 @@ public sealed class GameSession
 
     public event Action? BankTimeChanged;
 
+    public event Action? ShopStateChanged;
+
     public static GameSession CreateNew()
     {
         var session = new GameSession();
@@ -222,10 +224,28 @@ public sealed class GameSession
         ProgressionChanged?.Invoke();
     }
 
-    internal void NotifyTrainerLevelChanged()
+    internal void NotifyTrainerLevelChanged(string trainerId)
     {
+        GrantPokedollarsForTrainerClear(trainerId);
         TrainerLevelChanged?.Invoke();
         ProgressionChanged?.Invoke();
+        ShopStateChanged?.Invoke();
+    }
+
+    public void GrantPokedollarsForTrainerClear(string trainerId)
+    {
+        var trainerIndex = 0;
+        foreach (var trainer in KantoTrainerCatalog.All)
+        {
+            if (trainer.Id == trainerId)
+            {
+                var clearCount = GetTrainer(trainerId).Level;
+                State.Pokedollars += ShopRules.DollarsForTrainerClear(trainerIndex, clearCount);
+                return;
+            }
+
+            trainerIndex++;
+        }
     }
 
     public void RecordTypeLevelContributions(TypeLevelContribution[] contributions)
@@ -269,6 +289,7 @@ public sealed class GameSession
         var sum = State.TypeCounterCounts.Values.Sum();
         var multiplier = GameBalance.Battles.BattleSpeedMultiplierBaseline
             + sum * GameBalance.Battles.BattleSpeedBonusPerTotalTypeLevel;
+        multiplier *= ShopRules.XItemBattleMultiplier(State);
         return Math.Min(multiplier, GameBalance.Battles.BattleSpeedMultiplierCap);
     }
 
@@ -280,6 +301,54 @@ public sealed class GameSession
         var baseline = GameBalance.Battles.RouteTrainingSpeedMultiplierBaseline;
         var gymBonusAboveBaseline = Math.Max(0, training - baseline);
         return baseline + gymBonusAboveBaseline * GameBalance.Battles.RouteCatchFractionOfTrainingGymBonus;
+    }
+
+    public double GetBestOwnedBallCatchMultiplier() => ShopRules.BestOwnedBallCatchMultiplier(State);
+
+    public double GetVitaminTrainingMultiplier(string speciesRootName) =>
+        ShopRules.VitaminTrainingMultiplier(State, speciesRootName);
+
+    public bool IsShopVisible(string shopId) => ShopRules.IsShopVisible(State, shopId);
+
+    public bool IsShopTabUnlocked() => ShopRules.IsShopTabUnlocked(State);
+
+    public bool TryPurchaseShopItem(string itemId)
+    {
+        var item = KantoShopCatalog.FindItem(itemId);
+        if (item is null || !ShopRules.IsItemUnlocked(State, item.Value.Id))
+        {
+            return false;
+        }
+
+        if (!ShopRules.TryPurchase(State, item.Value))
+        {
+            return false;
+        }
+
+        ShopStateChanged?.Invoke();
+        return true;
+    }
+
+    public int TryBuyAllVitamins()
+    {
+        var bought = ShopRules.TryBuyAllVitamins(State);
+        if (bought > 0)
+        {
+            ShopStateChanged?.Invoke();
+        }
+
+        return bought;
+    }
+
+    public bool TryApplyVitamin(string speciesRootName)
+    {
+        if (!ShopRules.TryApplyVitamin(State, speciesRootName))
+        {
+            return false;
+        }
+
+        ShopStateChanged?.Invoke();
+        return true;
     }
 
     public bool CanChampionReset() =>
@@ -371,6 +440,9 @@ public sealed class GameSession
         State.SelectedRouteId = RouteIds.PalletTown;
         State.CeladonAlternateEeveelutionsUnlocked = false;
         State.SpeciesTrainingOrder.Clear();
+        State.Pokedollars = 0;
+        State.OwnedShopItemIds.Clear();
+        // UnassignedVitaminCount, VitaminApplySectionUnlocked, and VitaminDosesBySpeciesRoot persist across prestige.
 
         foreach (var speciesRoot in State.SpeciesByRoot.Keys)
         {
@@ -382,6 +454,7 @@ public sealed class GameSession
         ProgressionChanged?.Invoke();
         NotifyActiveBarsChanged();
         BankTimeChanged?.Invoke();
+        ShopStateChanged?.Invoke();
     }
 
     private static bool StartsHiddenBySpeciesRoot(string speciesRootName)

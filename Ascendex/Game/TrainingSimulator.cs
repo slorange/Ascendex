@@ -59,7 +59,7 @@ public static class TrainingSimulator
 
         progress.Progress = 0;
         progress.Level++;
-        session.NotifyTrainerLevelChanged();
+        session.NotifyTrainerLevelChanged(progress.TrainerId);
     }
 
     public static void GrantSpeciesLevelsWithTypePoints(
@@ -97,6 +97,15 @@ public static class TrainingSimulator
         var perTick = GameBalance.Training.ProgressPerTick
             * GetCatchActivityMultiplier(session, progress.IsCatching)
             * ClampMultiplier(speedMultiplier);
+
+        if (progress.IsCatching)
+        {
+            perTick *= session.GetBestOwnedBallCatchMultiplier();
+        }
+        else
+        {
+            perTick *= session.GetVitaminTrainingMultiplier(progress.SpeciesRootName);
+        }
 
         if (progress.IsCatching && config.CatchDifficultyMultiplier > 1.0)
         {

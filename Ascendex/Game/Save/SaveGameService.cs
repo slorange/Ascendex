@@ -43,7 +43,14 @@ public sealed class SaveGameService : IDisposable
             session.ApplyOfflineBankTime(data.SavedAtUtc);
         }
 
-        return (session, ClampTab(data.SelectedMainTab));
+        var selectedTab = data.SelectedMainTab;
+        // Shop tab inserted at index 2 in save v5; shift Collections/Prestige for older saves.
+        if (data.Version < 5 && selectedTab >= 2)
+        {
+            selectedTab++;
+        }
+
+        return (session, ClampTab(selectedTab));
     }
 
     public void BindAutoSave(GameSession session, Func<int> getSelectedMainTab)
@@ -104,5 +111,5 @@ public sealed class SaveGameService : IDisposable
         _store.Save(data);
     }
 
-    private static int ClampTab(int tab) => Math.Clamp(tab, 0, 3);
+    private static int ClampTab(int tab) => Math.Clamp(tab, 0, 4);
 }

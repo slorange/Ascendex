@@ -38,4 +38,19 @@ public sealed class RunState
 
     /// <summary>Banked guaranteed shinies passed forward when a guaranteed catch also wins the shiny roll.</summary>
     public int PendingGuaranteedShinies { get; set; }
+
+    /// <summary>Run currency from trainer clears; wiped on prestige.</summary>
+    public long Pokedollars { get; set; }
+
+    /// <summary>One-time shop purchases (balls, X-items, evolution items); wiped on prestige.</summary>
+    public HashSet<string> OwnedShopItemIds { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Vitamins bought but not yet applied to a species family.</summary>
+    public int UnassignedVitaminCount { get; set; }
+
+    /// <summary>True after the first vitamin purchase; keeps Apply Vitamins UI visible across prestige.</summary>
+    public bool VitaminApplySectionUnlocked { get; set; }
+
+    /// <summary>Vitamin doses per species root; persists across prestige.</summary>
+    public Dictionary<string, int> VitaminDosesBySpeciesRoot { get; } = new(StringComparer.Ordinal);
 }

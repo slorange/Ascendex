@@ -1,0 +1,59 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Ascendex.Controls"
+             xmlns:vm="clr-namespace:Ascendex.ViewModels"
+             mc:Ignorable="d"
+             d:DesignWidth="430"
+             d:DesignHeight="860"
+             x:Class="Ascendex.Views.ShopView"
+             x:DataType="vm:MainViewModel">
+  <Design.DataContext>
+    <vm:MainViewModel />
+  </Design.DataContext>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="16,18" Spacing="12">
+      <controls:OutlinedTextBlock Text="Shop" Foreground="White" FontSize="28" FontWeight="SemiBold" OutlineBrush="Black" OutlineThickness="1.5"/>
+      <TextBlock Text="{Binding PokedollarsText}" Foreground="#E8C547" FontSize="18" FontWeight="SemiBold"/>
+
+      <ItemsControl ItemsSource="{Binding ShopItems}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ShopItemRowViewModel">
+            <Border IsVisible="{Binding IsVisible}" Background="#23262D" BorderBrush="#4B505A" BorderThickness="1" Padding="10" Margin="0,0,0,6">
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DisplayName}" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PriceText}" Foreground="#E8C547" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding Description}" Foreground="#B8C0CC" FontSize="13" TextWrapping="Wrap"/>
+                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="10">
+                  <Button Content="Buy" Command="{Binding PurchaseCommand}" IsEnabled="{Binding CanPurchase}" Background="#4A6A3A" Foreground="White" Padding="10,6"/>
+                  <Button Content="Buy All" Command="{Binding BuyAllCommand}" IsVisible="{Binding IsVitamin}" IsEnabled="{Binding CanBuyAll}" Background="#3A5D7A" Foreground="White" Padding="10,6"/>
+                  <TextBlock Text="{Binding StatusText}" Foreground="#8FD8FF" FontSize="13" VerticalAlignment="Center"/>
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Border IsVisible="{Binding ShowVitaminApplySection}" Background="#2E333B" BorderBrush="#5F6470" BorderThickness="1" Padding="12">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Apply Vitamins" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+          <TextBlock Text="{Binding UnassignedVitaminsText}" Foreground="#8FD8FF" FontSize="14"/>
+          <ItemsControl ItemsSource="{Binding VitaminTargets}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:VitaminTargetViewModel">
+                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,4">
+                  <TextBlock Text="{Binding DisplayName}" Foreground="White" FontSize="14" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Text="{Binding DosesText}" Foreground="#B8C0CC" FontSize="13" Margin="8,0" VerticalAlignment="Center"/>
+                  <Button Grid.Column="2" Content="Apply" Command="{Binding ApplyCommand}" IsEnabled="{Binding CanApply}" Background="#3A5D7A" Foreground="White" Padding="10,4"/>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

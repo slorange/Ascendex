@@ -141,4 +141,45 @@ public static class GameBalance
         /// <summary>Each Shiny Charm adds this many times the base rate (1 charm → 2× base, 5 → 6× base).</summary>
         public const double ShinyCharmRateMultiplierPerCharm = 1.0;
     }
+
+    /// <summary>Shop currency, ball catch upgrades, X-item battle buffs, vitamins.</summary>
+    public static class Shop
+    {
+        /// <summary>Pokédollars for a clear: floor(Base × IndexScale^trainerIndex × clearCount).</summary>
+        public const double DollarsPerClearBase = 100;
+
+        /// <summary>Each later trainer multiplies payout by this (Brock = index 0 → ×1).</summary>
+        public const double DollarsPerClearIndexScale = 1.5;
+
+        public const double GreatBallCatchMultiplier = 1.5;
+        public const double UltraBallCatchMultiplier = 2.0;
+        public const double DuskBallCatchMultiplier = 3.0;
+        public const double QuickBallCatchMultiplier = 4.0;
+        public const double TimerBallCatchMultiplier = 5.0;
+
+        /// <summary>Each owned X-item multiplies battle speed by this (product stack).</summary>
+        public const double XItemBattleMultiplier = 1.5;
+
+        /// <summary>Training speed bonus per vitamin dose on a species family (additive: 1 + n × this).</summary>
+        public const double VitaminTrainingBonusPerDose = 0.05;
+
+        public const int VitaminMaxDosesPerFamily = 20;
+
+        public const int VitaminMaxDosesPerBossFamily = 50;
+
+        public const int PriceGreatBall = 500;
+        public const int PriceUltraBall = 2_000;
+        public const int PriceDuskBall = 5_000;
+        public const int PriceQuickBall = 12_000;
+        public const int PriceTimerBall = 25_000;
+
+        public const int PriceXAttack = 1_000;
+        public const int PriceXDefense = 2_500;
+        public const int PriceXSpecial = 6_000;
+        public const int PriceXSpeed = 12_000;
+
+        public const int PriceEvolutionStones = 8_000;
+        public const int PriceLinkCable = 10_000;
+        public const int PriceVitamin = 3_000;
+    }
 }

@@ -23,6 +23,11 @@ public static class SaveGameMapper
             ShinyCharmCount = state.ShinyCharmCount,
             LifetimeShinySpeciesRoots = state.LifetimeShinySpeciesRoots.ToList(),
             PendingGuaranteedShinies = state.PendingGuaranteedShinies,
+            Pokedollars = state.Pokedollars,
+            OwnedShopItemIds = state.OwnedShopItemIds.ToList(),
+            UnassignedVitaminCount = state.UnassignedVitaminCount,
+            VitaminApplySectionUnlocked = state.VitaminApplySectionUnlocked,
+            VitaminDosesBySpeciesRoot = state.VitaminDosesBySpeciesRoot.ToDictionary(pair => pair.Key, pair => pair.Value),
             Species = state.SpeciesByRoot.ToDictionary(
                 pair => pair.Key,
                 pair => new SpeciesProgressData
@@ -57,6 +62,29 @@ public static class SaveGameMapper
         state.PokedexResetCount = data.PokedexResetCount;
         state.ShinyCharmCount = data.ShinyCharmCount;
         state.PendingGuaranteedShinies = data.PendingGuaranteedShinies;
+        state.Pokedollars = data.Pokedollars;
+        state.UnassignedVitaminCount = data.UnassignedVitaminCount;
+        state.VitaminApplySectionUnlocked = data.VitaminApplySectionUnlocked
+            || data.UnassignedVitaminCount > 0
+            || data.VitaminDosesBySpeciesRoot.Values.Any(doses => doses > 0);
+
+        state.OwnedShopItemIds.Clear();
+        if (data.OwnedShopItemIds is { Count: > 0 })
+        {
+            foreach (var itemId in data.OwnedShopItemIds)
+            {
+                state.OwnedShopItemIds.Add(itemId);
+            }
+        }
+
+        state.VitaminDosesBySpeciesRoot.Clear();
+        if (data.VitaminDosesBySpeciesRoot is { Count: > 0 })
+        {
+            foreach (var (speciesRoot, doses) in data.VitaminDosesBySpeciesRoot)
+            {
+                state.VitaminDosesBySpeciesRoot[speciesRoot] = doses;
+            }
+        }
 
         state.LifetimeShinySpeciesRoots.Clear();
         if (data.LifetimeShinySpeciesRoots is { Count: > 0 })

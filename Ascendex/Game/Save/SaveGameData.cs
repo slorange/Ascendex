@@ -5,7 +5,7 @@ namespace Ascendex.Game.Save;
 
 public static class SaveGameVersions
 {
-    public const int Current = 4;
+    public const int Current = 5;
 }
 
 /// <summary>Versioned, JSON-serializable player save.</summary>
@@ -38,6 +38,16 @@ public sealed class SaveGameData
     public List<string> LifetimeShinySpeciesRoots { get; set; } = new();
 
     public int PendingGuaranteedShinies { get; set; }
+
+    public long Pokedollars { get; set; }
+
+    public List<string> OwnedShopItemIds { get; set; } = new();
+
+    public int UnassignedVitaminCount { get; set; }
+
+    public bool VitaminApplySectionUnlocked { get; set; }
+
+    public Dictionary<string, int> VitaminDosesBySpeciesRoot { get; set; } = new();
 
     public Dictionary<string, SpeciesProgressData> Species { get; set; } = new();
 
